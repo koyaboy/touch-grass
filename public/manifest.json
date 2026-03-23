@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "Touch Grass",
+  "description": "Enforced recovery breaks and daily browser shutdown for deep work sessions.",
+  "version": "0.1.0",
+  "permissions": [
+    "alarms",
+    "storage",
+    "tabs",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "assets/service-worker.js",
+    "type": "module"
+  },
+  "chrome_url_overrides": {
+    "newtab": "newtab/index.html"
+  },
+  "options_page": "settings/index.html",
+  "action": {
+    "default_title": "Touch Grass"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "sounds/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
+}
