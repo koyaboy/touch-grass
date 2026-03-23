@@ -1,6 +1,6 @@
 import type { UserSettings } from "./types";
 
-export const DEV_MODE = false;
+export const DEV_MODE = true;
 
 export const STORAGE_KEY = "touch-grass-state";
 
@@ -23,7 +23,7 @@ export const SOUND_FILES = {
 } as const;
 
 export const DEFAULT_SETTINGS: UserSettings = {
-  goal: "Protect my energy",
+  goal: "lock in",
   workDurationMinutes: 50,
   breakDurationMinutes: 10,
   hardShutdownTime: "22:00",

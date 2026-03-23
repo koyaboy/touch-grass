@@ -143,6 +143,20 @@ function render(payload: OverlayPayload | null): void {
         <p class="tg-overlay-kicker">${payload.kind === "break" ? "MANDATORY BREAK" : "DAILY SHUTDOWN"}</p>
         <h1 class="tg-overlay-title">${payload.title}</h1>
         <p class="tg-overlay-message">${payload.message}</p>
+        <div class="tg-overlay-badge-row">
+          ${
+            payload.kind === "break"
+              ? `
+            <span class="tg-overlay-badge">hydrate</span>
+            <span class="tg-overlay-badge">walk around</span>
+            <span class="tg-overlay-badge">your code can wait</span>
+          `
+              : `
+            <span class="tg-overlay-badge">close the laptop</span>
+            <span class="tg-overlay-badge">tomorrow has a start time</span>
+          `
+          }
+        </div>
         <div class="tg-overlay-countdown" data-role="countdown">${formatDuration(payload.endsAt - Date.now())}</div>
         <p class="tg-overlay-meta">
           ${payload.kind === "break" ? `Returns at ${payload.unlockTimeLabel}` : `Unlocked at ${payload.unlockTimeLabel}`}

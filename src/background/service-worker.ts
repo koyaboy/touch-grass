@@ -19,6 +19,7 @@ import { getStoredAppState, getTodaySessionHistory, sanitizeSettings, setStoredA
 import { formatClockTime, getNextOccurrence } from "../utils/time";
 
 const NON_SCRIPTABLE_PROTOCOLS = ["chrome://", "chrome-extension://", "edge://", "about:"];
+const NEW_TAB_PROTOCOLS = ["chrome://newtab/", "edge://newtab/"];
 
 function log(...args: unknown[]): void {
   if (DEV_MODE) {
@@ -69,10 +70,19 @@ function getOverlayPayload(appState: StoredAppState): OverlayPayload | null {
   const { recoveryState, settings } = appState;
 
   if (recoveryState.mode === "BREAK" && recoveryState.activeBreak) {
+    const memeMessages = [
+      "Your code will still be there in ten minutes.",
+      "Hydrate. Stretch. Blink. Pretend you're a human for a second.",
+      "Stand up before your spine files a complaint.",
+      "No heroic debugging while the recovery lock is active.",
+    ];
+    const memeMessage =
+      memeMessages[recoveryState.activeBreak.cycle % memeMessages.length];
+
     return {
       kind: "break",
       title: "bro step away from the keyboard",
-      message: "The timer is not the product. Recovery is the product.",
+      message: memeMessage,
       endsAt: recoveryState.activeBreak.endsAt,
       unlockTimeLabel: formatClockTime(recoveryState.activeBreak.endsAt),
       allowPhraseUnlock: recoveryState.activeBreak.allowPhraseUnlock,
@@ -97,6 +107,48 @@ function getOverlayPayload(appState: StoredAppState): OverlayPayload | null {
   }
 
   return null;
+}
+
+function isLockedMode(appState: StoredAppState): boolean {
+  return (
+    appState.recoveryState.mode === "BREAK" ||
+    appState.recoveryState.mode === "SHUTDOWN"
+  );
+}
+
+function getLockedPageUrl(): string {
+  return chrome.runtime.getURL("newtab/index.html");
+}
+
+function isExtensionPage(url: string): boolean {
+  return url.startsWith(chrome.runtime.getURL(""));
+}
+
+async function redirectTabToLockedPage(tabId: number): Promise<void> {
+  try {
+    await chrome.tabs.update(tabId, { url: getLockedPageUrl() });
+  } catch (error) {
+    log("redirect skipped", tabId, error);
+  }
+}
+
+async function enforceLockOnTab(tab: chrome.tabs.Tab, appState: StoredAppState): Promise<void> {
+  if (!tab.id || !isLockedMode(appState)) {
+    return;
+  }
+
+  const tabUrl = tab.pendingUrl ?? tab.url ?? "";
+
+  if (!tabUrl || NEW_TAB_PROTOCOLS.some((prefix) => tabUrl.startsWith(prefix))) {
+    await redirectTabToLockedPage(tab.id);
+    return;
+  }
+
+  if (isExtensionPage(tabUrl)) {
+    return;
+  }
+
+  await redirectTabToLockedPage(tab.id);
 }
 
 async function scheduleAlarm(name: string, when: number): Promise<void> {
@@ -419,16 +471,35 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status !== "complete" || !tabId) {
+  if (!tabId) {
     return;
   }
 
   void getStoredAppState().then((appState) => {
-    if (appState.recoveryState.mode === "BREAK" || appState.recoveryState.mode === "SHUTDOWN") {
-      return syncOverlayToTab(tab, getOverlayPayload(appState));
+    if (!isLockedMode(appState)) {
+      return undefined;
+    }
+
+    if (changeInfo.status === "loading" || changeInfo.status === "complete" || changeInfo.url) {
+      return enforceLockOnTab(tab, appState);
     }
 
     return undefined;
+  });
+});
+
+chrome.tabs.onCreated.addListener((tab) => {
+  void getStoredAppState().then((appState) => enforceLockOnTab(tab, appState));
+});
+
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  void getStoredAppState().then(async (appState) => {
+    if (!isLockedMode(appState)) {
+      return;
+    }
+
+    const tab = await chrome.tabs.get(tabId);
+    await enforceLockOnTab(tab, appState);
   });
 });
 

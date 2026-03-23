@@ -82,15 +82,15 @@ function render(): void {
 
   appRoot.innerHTML = `
     <main class="mx-auto min-h-screen max-w-5xl px-6 py-10">
-      <div class="rounded-[32px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-slate-950/8 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/50">
+      <div class="settings-shell rounded-[36px] p-6 dark:border-white/10 dark:bg-white/5 md:p-8">
         <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <p class="text-xs uppercase tracking-[0.35em] text-slate-500 dark:text-slate-400">Settings</p>
+            <p class="text-xs uppercase tracking-[0.35em] text-slate-500 dark:text-white/48">Settings</p>
             <h1 class="settings-heading mt-3 text-4xl md:text-5xl">Choose when work stops and recovery starts.</h1>
           </div>
           <a
             href="/newtab/index.html"
-            class="rounded-full border border-slate-300 px-4 py-2 text-sm text-slate-600 transition hover:bg-white/70 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-900/40"
+            class="rounded-full border border-slate-300/70 px-4 py-2 text-sm text-slate-700 transition hover:bg-white/70 dark:border-white/12 dark:text-white/74 dark:hover:bg-white/8"
           >
             Back to dashboard
           </a>
@@ -98,70 +98,70 @@ function render(): void {
 
         <form id="settings-form" class="mt-10 grid gap-6 md:grid-cols-2">
           <label class="grid gap-2">
-            <span class="text-sm font-medium text-slate-700 dark:text-slate-200">Work duration (minutes)</span>
+            <span class="text-sm font-medium text-slate-700 dark:text-white/84">Work duration (minutes)</span>
             <input
               name="workDurationMinutes"
               type="number"
               min="1"
-              class="rounded-2xl border border-slate-300 bg-white/80 px-4 py-3 text-base dark:border-slate-700 dark:bg-slate-900/70"
+              class="rounded-2xl border border-slate-300/80 bg-white/70 px-4 py-3 text-base dark:border-white/10 dark:bg-white/6"
               value="${settings.workDurationMinutes}"
             />
           </label>
 
           <label class="grid gap-2">
-            <span class="text-sm font-medium text-slate-700 dark:text-slate-200">Break duration (minutes)</span>
+            <span class="text-sm font-medium text-slate-700 dark:text-white/84">Break duration (minutes)</span>
             <input
               name="breakDurationMinutes"
               type="number"
               min="1"
-              class="rounded-2xl border border-slate-300 bg-white/80 px-4 py-3 text-base dark:border-slate-700 dark:bg-slate-900/70"
+              class="rounded-2xl border border-slate-300/80 bg-white/70 px-4 py-3 text-base dark:border-white/10 dark:bg-white/6"
               value="${settings.breakDurationMinutes}"
             />
           </label>
 
           <label class="grid gap-2">
-            <span class="text-sm font-medium text-slate-700 dark:text-slate-200">Hard shutdown time</span>
+            <span class="text-sm font-medium text-slate-700 dark:text-white/84">Hard shutdown time</span>
             <input
               name="hardShutdownTime"
               type="time"
-              class="rounded-2xl border border-slate-300 bg-white/80 px-4 py-3 text-base dark:border-slate-700 dark:bg-slate-900/70"
+              class="rounded-2xl border border-slate-300/80 bg-white/70 px-4 py-3 text-base dark:border-white/10 dark:bg-white/6"
               value="${settings.hardShutdownTime}"
             />
           </label>
 
           <label class="grid gap-2">
-            <span class="text-sm font-medium text-slate-700 dark:text-slate-200">Work start time</span>
+            <span class="text-sm font-medium text-slate-700 dark:text-white/84">Work start time</span>
             <input
               name="workStartTime"
               type="time"
-              class="rounded-2xl border border-slate-300 bg-white/80 px-4 py-3 text-base dark:border-slate-700 dark:bg-slate-900/70"
+              class="rounded-2xl border border-slate-300/80 bg-white/70 px-4 py-3 text-base dark:border-white/10 dark:bg-white/6"
               value="${settings.workStartTime}"
             />
           </label>
 
           <label class="grid gap-2 md:col-span-2">
-            <span class="text-sm font-medium text-slate-700 dark:text-slate-200">Goal text shown on the dashboard</span>
+            <span class="text-sm font-medium text-slate-700 dark:text-white/84">Goal text shown on the dashboard</span>
             <input
               name="goal"
               type="text"
-              class="rounded-2xl border border-slate-300 bg-white/80 px-4 py-3 text-base dark:border-slate-700 dark:bg-slate-900/70"
+              class="rounded-2xl border border-slate-300/80 bg-white/70 px-4 py-3 text-base dark:border-white/10 dark:bg-white/6"
               value="${escapeHtml(settings.goal)}"
             />
           </label>
 
-          <div class="md:col-span-2 flex flex-col gap-4 rounded-[24px] border border-slate-200/80 bg-slate-50/80 p-5 dark:border-slate-800 dark:bg-slate-900/40">
+          <div class="md:col-span-2 flex flex-col gap-4 rounded-[28px] border border-slate-200/80 bg-white/45 p-5 dark:border-white/10 dark:bg-white/6">
             <p class="text-sm font-medium">Developer mode</p>
-            <p class="text-sm text-slate-600 dark:text-slate-400">
+            <p class="text-sm text-slate-600 dark:text-white/58">
               Toggle <code>DEV_MODE</code> in <code>src/config.ts</code> and rebuild. When enabled, work becomes 1 minute, break becomes 10 seconds, transitions log to the console, and overlays expose bypass controls.
             </p>
-            <p class="text-sm text-slate-600 dark:text-slate-400">Current build: <strong>${DEV_MODE ? "DEV_MODE on" : "DEV_MODE off"}</strong></p>
+            <p class="text-sm text-slate-600 dark:text-white/58">Current build: <strong>${DEV_MODE ? "DEV_MODE on" : "DEV_MODE off"}</strong></p>
           </div>
 
           <div class="md:col-span-2 flex items-center justify-between gap-4">
-            <p id="save-status" class="text-sm text-slate-500 dark:text-slate-400">Settings are stored in chrome.storage.local.</p>
+            <p id="save-status" class="text-sm text-slate-500 dark:text-white/50">Settings are stored in chrome.storage.local.</p>
             <button
               type="submit"
-              class="rounded-full bg-slate-950 px-6 py-3 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
+              class="rounded-full bg-slate-950 px-6 py-3 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-white/88"
             >
               Save settings
             </button>

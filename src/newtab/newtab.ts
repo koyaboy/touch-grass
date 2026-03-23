@@ -93,129 +93,181 @@ function render(): void {
   const lockEndsAt =
     appState.recoveryState.activeBreak?.endsAt ?? appState.recoveryState.shutdown?.unlockAt ?? 0;
   const isLocked = mode === "BREAK" || mode === "SHUTDOWN";
+  const shellModeClass =
+    mode === "WORKING" ? "tg-screen--working" : mode === "SHUTDOWN" ? "tg-screen--shutdown" : "tg-screen--idle";
 
   appRoot.innerHTML = `
     <main class="tg-shell">
-      <div class="tg-layout grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
-        <section class="tg-panel rounded-[32px] p-6 md:p-8">
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <p class="text-xs uppercase tracking-[0.35em] text-slate-500 dark:text-slate-400">Touch Grass</p>
-              <h1 class="tg-heading mt-3 text-4xl md:text-6xl">Recovery enforcement for deep work.</h1>
-            </div>
+      <section class="tg-screen ${shellModeClass}">
+        <div class="tg-surface flex min-h-screen flex-col p-5 md:p-8">
+          <header class="flex items-center justify-between">
+            <p class="tg-brand text-[11px] font-medium text-white/72">Touch Grass</p>
             <a
               href="/settings/index.html"
-              class="rounded-full border border-slate-300/70 px-4 py-2 text-sm text-slate-600 transition hover:bg-white/60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-900/40"
+              class="rounded-full border border-white/18 bg-white/6 px-4 py-2 text-xs font-medium uppercase tracking-[0.24em] text-white/78 transition hover:bg-white/12"
               aria-label="Open settings"
             >
               Settings
             </a>
-          </div>
+          </header>
 
-          <div class="mt-10 rounded-[28px] border border-slate-200/70 bg-white/65 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/40">
-            <p class="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Goal for the day</p>
-            <input
-              id="goal-input"
-              class="tg-goal-input tg-heading mt-3 text-3xl md:text-5xl"
-              value="${escapeHtml(goalDraft)}"
-              placeholder="Write one sentence that matters today"
-            />
-          </div>
+          ${
+            mode === "WORKING" && activeSession
+              ? `
+            <section class="mx-auto flex w-full max-w-6xl flex-1 flex-col justify-between py-12 md:py-16">
+              <div class="tg-muted flex items-center gap-3 text-xs uppercase tracking-[0.28em]">
+                <span class="tg-status-dot"></span>
+                Mission active
+              </div>
 
-          <div class="mt-8 rounded-[32px] bg-slate-950 px-6 py-8 text-slate-50 dark:bg-slate-900">
-            ${
-              mode === "WORKING" && activeSession
-                ? `
-              <p class="text-xs uppercase tracking-[0.35em] text-slate-400">Cockpit view</p>
-              <div class="mt-4 flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
-                <div>
-                  <p class="text-sm text-slate-400">Session ${activeSession.cycle}</p>
-                  <div class="mt-2 text-6xl font-semibold tracking-tight md:text-8xl" data-role="working-countdown">
+              <div class="max-w-4xl">
+                <p class="tg-muted text-sm uppercase tracking-[0.34em]">Session ${activeSession.cycle}</p>
+                <h1 class="tg-mission-heading mt-4 text-5xl leading-[0.88] text-white md:text-8xl">Lock in.</h1>
+                <p class="mt-5 max-w-2xl text-base text-white/62 md:text-lg">${escapeHtml(activeSession.goalSnapshot)}</p>
+              </div>
+
+              <div class="grid gap-6 lg:grid-cols-[1.3fr_0.7fr] lg:items-end">
+                <div class="tg-mission-panel rounded-[36px] p-6 md:p-8">
+                  <p class="text-xs uppercase tracking-[0.3em] text-white/44">Focus clock</p>
+                  <div class="mt-4 text-7xl font-semibold tracking-[-0.06em] text-white md:text-[10rem]" data-role="working-countdown">
                     ${formatDuration(activeSession.endsAt - Date.now())}
                   </div>
-                  <p class="mt-3 text-sm text-slate-400">Break hits at ${formatClockTime(activeSession.endsAt)}</p>
+                  <div class="mt-4 flex flex-wrap items-center gap-4 text-sm text-white/56">
+                    <span>Break begins at ${formatClockTime(activeSession.endsAt)}</span>
+                    <span class="inline-block h-1 w-1 rounded-full bg-white/36"></span>
+                    <span>${todaySessions.length} sessions completed today</span>
+                  </div>
                 </div>
-                <button
-                  id="end-session-button"
-                  class="rounded-full border border-slate-700 px-5 py-3 text-sm text-slate-200 transition hover:border-slate-500 hover:bg-slate-800"
-                >
-                  End session
-                </button>
-              </div>
-            `
-                : `
-              <p class="text-xs uppercase tracking-[0.35em] text-slate-400">Start fast</p>
-              <h2 class="mt-4 text-3xl font-semibold tracking-tight md:text-5xl">
-                ${mode === "SHUTDOWN" ? "Locked until tomorrow’s start time." : "Start a session in under ten seconds."}
-              </h2>
-              <p class="mt-4 max-w-2xl text-base text-slate-300">
-                ${DEV_MODE ? "DEV_MODE is enabled. Work and break intervals are shortened for fast testing." : "The timer matters less than the lock. Once the break starts, every tab gets blocked."}
-              </p>
-              <button
-                id="start-session-button"
-                class="mt-8 rounded-full bg-amber-300 px-6 py-4 text-base font-medium text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-300"
-                ${mode === "SHUTDOWN" ? "disabled" : ""}
-              >
-                Start session
-              </button>
-            `
-            }
-          </div>
 
-          <div class="mt-8 grid gap-4 md:grid-cols-2">
-            <article class="tg-panel rounded-[24px] p-5">
-              <p class="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Completed today</p>
-              <p class="mt-4 text-4xl font-semibold">${todaySessions.length}</p>
-            </article>
-            <article class="tg-panel rounded-[24px] p-5">
-              <p class="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Total focus time</p>
-              <p class="mt-4 text-4xl font-semibold">${formatMinutes(totalFocusMinutes)}</p>
-            </article>
-          </div>
-        </section>
-
-        <aside class="tg-panel rounded-[32px] p-6 md:p-8">
-          <p class="text-xs uppercase tracking-[0.35em] text-slate-500 dark:text-slate-400">Today’s history</p>
-          <div class="mt-6 space-y-4">
-            ${
-              todaySessions.length === 0
-                ? `
-              <div class="rounded-[24px] border border-dashed border-slate-300/80 px-5 py-6 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                No completed sessions yet. Start one from the dashboard.
-              </div>
-            `
-                : todaySessions
-                    .map(
-                      (session) => `
-                  <article class="rounded-[24px] border border-slate-200/80 bg-white/60 px-5 py-4 dark:border-slate-800 dark:bg-slate-950/30">
-                    <div class="flex items-center justify-between gap-3">
-                      <p class="font-medium">Session ${session.cycle}</p>
-                      <p class="text-sm text-slate-500 dark:text-slate-400">${formatMinutes(session.workDurationMinutes)}</p>
-                    </div>
-                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">${escapeHtml(session.goalSnapshot)}</p>
-                    <p class="mt-3 text-xs uppercase tracking-[0.25em] text-slate-400 dark:text-slate-500">
-                      Completed ${formatClockTime(session.completedAt)}
-                    </p>
+                <div class="space-y-4">
+                  <article class="tg-glass rounded-[28px] p-5">
+                    <p class="text-xs uppercase tracking-[0.28em] text-white/44">Focus time today</p>
+                    <p class="mt-3 text-4xl font-semibold text-white">${formatMinutes(totalFocusMinutes)}</p>
                   </article>
-                `,
-                    )
-                    .join("")
-            }
-          </div>
-        </aside>
-      </div>
+                  <button
+                    id="end-session-button"
+                    class="w-full rounded-full border border-white/18 bg-white/8 px-5 py-4 text-sm font-medium uppercase tracking-[0.24em] text-white transition hover:bg-white/14"
+                  >
+                    End session
+                  </button>
+                </div>
+              </div>
+            </section>
+          `
+              : mode === "SHUTDOWN"
+                ? `
+            <section class="mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center py-12 text-center">
+              <div class="w-full max-w-3xl">
+                <p class="tg-muted text-sm uppercase tracking-[0.32em]">Shutdown</p>
+                <h1 class="tg-heading mt-5 text-5xl leading-[0.92] text-white md:text-8xl">You tried today.</h1>
+                <p class="mx-auto mt-5 max-w-xl text-base leading-7 text-white/72 md:text-lg">No more work tonight.</p>
+              </div>
+
+              <div class="tg-glass mt-10 w-full max-w-2xl rounded-[42px] p-7 md:p-10">
+                <p class="text-[11px] uppercase tracking-[0.34em] text-white/48">Unlocks at</p>
+                <div class="mt-4 text-5xl font-semibold tracking-[-0.05em] text-white md:text-7xl">${formatClockTime(lockEndsAt)}</div>
+                <p class="mt-6 text-sm uppercase tracking-[0.24em] text-white/44">Current goal</p>
+                <p class="mt-3 text-2xl text-white/80 md:text-3xl">${escapeHtml(goalDraft || "lock in")}</p>
+              </div>
+            </section>
+          `
+              : `
+            <section class="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center py-12 text-center">
+              <div class="w-full max-w-3xl">
+                <p class="tg-muted text-sm uppercase tracking-[0.32em]">Recovery enforcement</p>
+                <h1 class="tg-heading mt-5 text-5xl leading-[0.94] text-white md:text-8xl">Touch grass.</h1>
+                <p class="mx-auto mt-5 max-w-xl text-base leading-7 text-white/68 md:text-lg">Then come back sharper.</p>
+              </div>
+
+              <div class="tg-glass mt-10 w-full max-w-xl rounded-[40px] p-6 md:p-8">
+                <p class="text-[11px] uppercase tracking-[0.34em] text-white/54">Current goal</p>
+                <input
+                  id="goal-input"
+                  class="tg-goal-input tg-heading mt-5 pb-3 text-center text-3xl text-white placeholder:text-white/38 md:text-5xl"
+                  value="${escapeHtml(goalDraft)}"
+                  placeholder="lock in"
+                />
+                <button
+                  id="start-session-button"
+                  class="mt-8 rounded-full bg-white px-10 py-4 text-sm font-semibold uppercase tracking-[0.28em] text-slate-950 transition hover:bg-white/88 disabled:cursor-not-allowed disabled:bg-white/18 disabled:text-white/45"
+                >
+                  Start session
+                </button>
+                <p class="mt-4 text-xs uppercase tracking-[0.26em] text-white/48">
+                  ${DEV_MODE ? "DEV MODE active" : "One tap to begin"}
+                </p>
+              </div>
+
+              <div class="mt-8 grid w-full max-w-4xl gap-4 md:grid-cols-[0.8fr_1.2fr]">
+                <article class="tg-glass rounded-[28px] p-5 text-left">
+                  <p class="text-[11px] uppercase tracking-[0.3em] text-white/52">Today</p>
+                  <div class="mt-4 flex items-end justify-between gap-4">
+                    <div>
+                      <p class="text-4xl font-semibold text-white">${todaySessions.length}</p>
+                      <p class="mt-1 text-sm text-white/58">sessions completed</p>
+                    </div>
+                    <p class="text-sm text-white/58">${formatMinutes(totalFocusMinutes)} focused</p>
+                  </div>
+                </article>
+
+                <aside class="tg-glass rounded-[28px] p-5 text-left">
+                  <p class="text-[11px] uppercase tracking-[0.3em] text-white/52">History</p>
+                  <div class="mt-4 space-y-3">
+                    ${
+                      todaySessions.length === 0
+                        ? `
+                      <p class="text-sm text-white/54">No sessions yet.</p>
+                    `
+                        : todaySessions
+                            .slice(0, 3)
+                            .map(
+                              (session) => `
+                          <article class="tg-history-card rounded-[22px] px-4 py-3">
+                            <div class="flex items-center justify-between gap-3">
+                              <p class="text-sm font-medium text-white">Session ${session.cycle}</p>
+                              <p class="text-xs uppercase tracking-[0.24em] text-white/44">${formatMinutes(session.workDurationMinutes)}</p>
+                            </div>
+                            <p class="mt-2 text-sm text-white/58">${escapeHtml(session.goalSnapshot)}</p>
+                          </article>
+                        `,
+                            )
+                            .join("")
+                    }
+                  </div>
+                </aside>
+              </div>
+            </section>
+          `
+          }
+        </div>
+      </section>
 
       ${
         isLocked
           ? `
         <div class="tg-page-lock">
           <section class="tg-page-lock-card tg-page-lock-card--${mode === "BREAK" ? "break" : "shutdown"}">
-            <p class="text-xs uppercase tracking-[0.35em] text-white/80">${mode === "BREAK" ? "Mandatory break" : "Daily shutdown"}</p>
-            <h2 class="mt-4 text-4xl font-semibold tracking-tight">${mode === "BREAK" ? "bro step away from the keyboard" : "you're done for today"}</h2>
-            <p class="mt-4 text-base text-white/85">
-              ${mode === "BREAK" ? "Every tab is locked until the countdown ends or you type the recovery phrase in another tab." : `Unlocked at ${formatClockTime(lockEndsAt)}.`}
+            <p class="text-xs uppercase tracking-[0.35em] text-white/74">${mode === "BREAK" ? "Mandatory break" : "Daily shutdown"}</p>
+            <h2 class="mt-4 text-4xl font-semibold tracking-tight md:text-6xl">${mode === "BREAK" ? "bro step away from the keyboard" : "you're done for today"}</h2>
+            <p class="mt-5 max-w-2xl text-base leading-7 text-white/82">
+              ${mode === "BREAK" ? "Every normal tab will re-lock. Stretch, walk, get water, blink like a person, then come back." : `Unlocked at ${formatClockTime(lockEndsAt)}. The workday is over. You can pick it back up tomorrow.`}
             </p>
-            <div class="mt-6 text-5xl font-semibold" data-role="lock-countdown">${formatDuration(lockEndsAt - Date.now())}</div>
+            ${
+              mode === "BREAK"
+                ? `
+              <div class="tg-lock-meme mt-6">
+                <span>🧍</span>
+                <span>no more heroic debugging right now</span>
+              </div>
+            `
+                : `
+              <div class="tg-lock-meme mt-6">
+                <span>🌙</span>
+                <span>rest is part of the system</span>
+              </div>
+            `
+            }
+            <div class="mt-8 text-5xl font-semibold tracking-[-0.05em] md:text-7xl" data-role="lock-countdown">${formatDuration(lockEndsAt - Date.now())}</div>
             ${
               DEV_MODE
                 ? `

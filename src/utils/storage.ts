@@ -54,8 +54,10 @@ function sanitizeText(value: unknown, fallback: string): string {
 }
 
 export function sanitizeSettings(raw: Partial<UserSettings> | undefined): UserSettings {
+  const sanitizedGoal = sanitizeText(raw?.goal, DEFAULT_SETTINGS.goal);
+
   return {
-    goal: sanitizeText(raw?.goal, DEFAULT_SETTINGS.goal),
+    goal: sanitizedGoal === "Protect my energy" ? DEFAULT_SETTINGS.goal : sanitizedGoal,
     workDurationMinutes: sanitizePositiveInteger(
       raw?.workDurationMinutes,
       DEFAULT_SETTINGS.workDurationMinutes,
