@@ -406,7 +406,7 @@ function render(): void {
             <p class="text-xs uppercase tracking-[0.35em] text-white/74">${mode === "BREAK" ? "Mandatory break" : "Daily shutdown"}</p>
             <h2 class="mt-4 text-4xl font-semibold tracking-tight md:text-6xl">${mode === "BREAK" ? "bro step away from the keyboard" : "you're done for today"}</h2>
             <p class="mt-5 max-w-2xl text-base leading-7 text-white/82">
-              ${mode === "BREAK" ? "Drink water. Walk around. Let your eyes refocus before you come back." : `Shutdown lock until ${formatClockTime(lockEndsAt)}. This exists to stop the extra hour from becoming three.`}
+              ${mode === "BREAK" ? "Mandatory break. Stand up, drink water, and let your eyes reset before you come back." : `Shutdown lock until ${formatClockTime(lockEndsAt)}. This exists to stop the extra hour from becoming three.`}
             </p>
             <div class="tg-lock-gallery mt-6">
               ${

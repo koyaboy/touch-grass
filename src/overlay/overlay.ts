@@ -20,10 +20,10 @@ let tickerId: number | null = null;
 let lastSoundKey = "";
 
 const BREAK_IMAGES = [
-  "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=900&q=80",
-  "https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=900&q=80",
-  "https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=900&q=80",
-  "https://images.unsplash.com/photo-1501004318641-b39e6451bec6?auto=format&fit=crop&w=900&q=80",
+  "https://images.unsplash.com/photo-1511497584788-876760111969?auto=format&fit=crop&w=900&q=80",
+  "https://images.unsplash.com/photo-1500534314209-a26db0f5b2c6?auto=format&fit=crop&w=900&q=80",
+  "https://images.unsplash.com/photo-1508672019048-805c876b67e2?auto=format&fit=crop&w=900&q=80",
+  "https://images.unsplash.com/photo-1499209974431-9dddcece7f88?auto=format&fit=crop&w=900&q=80",
 ];
 
 const SHUTDOWN_IMAGES = [
@@ -183,14 +183,24 @@ function render(payload: OverlayPayload | null): void {
       <div class="tg-overlay-card">
         <p class="tg-overlay-kicker">${payload.kind === "break" ? "MANDATORY BREAK" : "DAILY SHUTDOWN"}</p>
         <h1 class="tg-overlay-title">${payload.title}</h1>
-        <p class="tg-overlay-message">${payload.message}</p>
+        <p class="tg-overlay-message">
+          ${
+            payload.kind === "break"
+              ? `
+            Mandatory break. Stand up, drink water, and let your eyes reset before you come back.
+          `
+              : `
+            ${payload.message}
+          `
+          }
+        </p>
         <div class="tg-overlay-badge-row">
           ${
             payload.kind === "break"
               ? `
-            <span class="tg-overlay-badge">hydrate</span>
-            <span class="tg-overlay-badge">walk around</span>
-            <span class="tg-overlay-badge">your code can wait</span>
+            <span class="tg-overlay-badge">step away</span>
+            <span class="tg-overlay-badge">drink water</span>
+            <span class="tg-overlay-badge">come back sharper</span>
           `
               : `
             <span class="tg-overlay-badge">close the laptop</span>

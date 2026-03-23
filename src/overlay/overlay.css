@@ -23,9 +23,9 @@ body.touch-grass-overlay-active {
 
 .tg-overlay-shell--break {
   background:
-    radial-gradient(circle at top left, rgba(255, 249, 196, 0.34), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(251, 113, 133, 0.22), transparent 28%),
-    linear-gradient(135deg, #f97316 0%, #f59e0b 45%, #facc15 100%);
+    radial-gradient(circle at top left, rgba(196, 245, 215, 0.14), transparent 24%),
+    radial-gradient(circle at bottom right, rgba(96, 165, 250, 0.14), transparent 24%),
+    linear-gradient(135deg, #0f1720 0%, #14281d 48%, #1f3b2d 100%);
 }
 
 .tg-overlay-shell--shutdown {
@@ -60,8 +60,8 @@ body.touch-grass-overlay-active {
 
 .tg-overlay-shell--break .tg-overlay-card {
   background:
-    radial-gradient(circle at top right, rgba(255, 255, 255, 0.12), transparent 28%),
-    rgba(124, 45, 18, 0.54);
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.08), transparent 28%),
+    rgba(9, 18, 14, 0.58);
 }
 
 .tg-overlay-shell--shutdown .tg-overlay-card {
@@ -85,8 +85,7 @@ body.touch-grass-overlay-active {
 }
 
 .tg-overlay-shell--break .tg-overlay-title {
-  font-family: "Arial Black", Impact, sans-serif;
-  text-transform: uppercase;
+  font-family: Georgia, "Times New Roman", serif;
 }
 
 .tg-overlay-shell--shutdown .tg-overlay-title {
@@ -98,6 +97,7 @@ body.touch-grass-overlay-active {
   max-width: 40ch;
   font-size: 1.05rem;
   line-height: 1.6;
+  color: rgba(255, 248, 235, 0.9);
 }
 
 .tg-overlay-countdown {
@@ -160,8 +160,9 @@ body.touch-grass-overlay-active {
   border-radius: 16px;
   padding: 14px 16px;
   font-size: 1rem;
-  color: #111827;
-  background: rgba(255, 250, 240, 0.94);
+  color: #e5e7eb;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 .tg-overlay-button,
@@ -175,8 +176,8 @@ body.touch-grass-overlay-active {
 }
 
 .tg-overlay-button {
-  color: #1f2937;
-  background: #fff4c2;
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.94);
 }
 
 .tg-overlay-dev-button {
