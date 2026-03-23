@@ -19,6 +19,20 @@ let currentPayload: OverlayPayload | null = null;
 let tickerId: number | null = null;
 let lastSoundKey = "";
 
+const BREAK_IMAGES = [
+  "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=900&q=80",
+  "https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=900&q=80",
+  "https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=900&q=80",
+  "https://images.unsplash.com/photo-1501004318641-b39e6451bec6?auto=format&fit=crop&w=900&q=80",
+];
+
+const SHUTDOWN_IMAGES = [
+  "https://images.unsplash.com/photo-1493246507139-91e8fad9978e?auto=format&fit=crop&w=900&q=80",
+  "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80",
+  "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=900&q=80",
+  "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=900&q=80",
+];
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -49,6 +63,24 @@ function playSound(soundPath: string): void {
 
   const audio = new Audio(chrome.runtime.getURL(soundPath));
   void audio.play().catch(() => undefined);
+}
+
+function getClockBucket(): number {
+  const hour = new Date().getHours();
+
+  if (hour < 6) {
+    return 0;
+  }
+
+  if (hour < 12) {
+    return 1;
+  }
+
+  if (hour < 18) {
+    return 2;
+  }
+
+  return 3;
 }
 
 function ensureRootPersistence(): void {
@@ -136,6 +168,15 @@ function render(payload: OverlayPayload | null): void {
   document.documentElement.classList.add("touch-grass-overlay-active");
   document.body?.classList.add("touch-grass-overlay-active");
   root.className = `tg-overlay-root tg-overlay-root--${payload.kind}`;
+  const bucket = getClockBucket();
+  const primaryImage =
+    payload.kind === "break"
+      ? BREAK_IMAGES[bucket % BREAK_IMAGES.length]
+      : SHUTDOWN_IMAGES[bucket % SHUTDOWN_IMAGES.length];
+  const secondaryImage =
+    payload.kind === "break"
+      ? BREAK_IMAGES[(bucket + 1) % BREAK_IMAGES.length]
+      : SHUTDOWN_IMAGES[(bucket + 1) % SHUTDOWN_IMAGES.length];
   root.innerHTML = `
     <section class="tg-overlay-shell tg-overlay-shell--${payload.kind}">
       <div class="tg-overlay-noise"></div>
@@ -156,6 +197,10 @@ function render(payload: OverlayPayload | null): void {
             <span class="tg-overlay-badge">tomorrow has a start time</span>
           `
           }
+        </div>
+        <div class="tg-overlay-gallery">
+          <div class="tg-overlay-image" style="background-image:url('${primaryImage}')"></div>
+          <div class="tg-overlay-image" style="background-image:url('${secondaryImage}')"></div>
         </div>
         <div class="tg-overlay-countdown" data-role="countdown">${formatDuration(payload.endsAt - Date.now())}</div>
         <p class="tg-overlay-meta">

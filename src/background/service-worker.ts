@@ -7,6 +7,8 @@ import {
   getEffectiveWorkDurationMs,
 } from "../config";
 import type {
+  ActiveSession,
+  CheckInAction,
   OverlayPayload,
   OverlaySyncMessage,
   RuntimeRequestMessage,
@@ -15,7 +17,12 @@ import type {
   StoredAppState,
   UserSettings,
 } from "../types";
-import { getStoredAppState, getTodaySessionHistory, sanitizeSettings, setStoredAppState } from "../utils/storage";
+import {
+  getStoredAppState,
+  getTodaySessionHistory,
+  sanitizeSettings,
+  setStoredAppState,
+} from "../utils/storage";
 import { formatClockTime, getNextOccurrence } from "../utils/time";
 
 const NON_SCRIPTABLE_PROTOCOLS = ["chrome://", "chrome-extension://", "edge://", "about:"];
@@ -35,8 +42,38 @@ function isTabScriptable(tab: chrome.tabs.Tab): boolean {
   return !NON_SCRIPTABLE_PROTOCOLS.some((protocol) => tab.url?.startsWith(protocol));
 }
 
+function isLockedMode(appState: StoredAppState): boolean {
+  return appState.recoveryState.mode === "BREAK" || appState.recoveryState.mode === "SHUTDOWN";
+}
+
 function getNextCycleNumber(appState: StoredAppState): number {
   return getTodaySessionHistory(appState.sessionHistory).length + 1;
+}
+
+function getLockedPageUrl(): string {
+  return chrome.runtime.getURL("newtab/index.html");
+}
+
+function isExtensionPage(url: string): boolean {
+  return url.startsWith(chrome.runtime.getURL(""));
+}
+
+function createWorkingSession(
+  appState: StoredAppState,
+  cycle: number,
+  goalSnapshot: string,
+  sessionId: ActiveSession["id"] = crypto.randomUUID(),
+  remainingMs = getEffectiveWorkDurationMs(appState.settings),
+): ActiveSession {
+  const now = Date.now();
+
+  return {
+    id: sessionId,
+    cycle,
+    startedAt: now,
+    endsAt: now + remainingMs,
+    goalSnapshot,
+  };
 }
 
 function createCompletedSession(
@@ -71,18 +108,19 @@ function getOverlayPayload(appState: StoredAppState): OverlayPayload | null {
 
   if (recoveryState.mode === "BREAK" && recoveryState.activeBreak) {
     const memeMessages = [
-      "Your code will still be there in ten minutes.",
-      "Hydrate. Stretch. Blink. Pretend you're a human for a second.",
-      "Stand up before your spine files a complaint.",
-      "No heroic debugging while the recovery lock is active.",
+      "Hydrate. Stretch. Your code can wait.",
+      "Step away before your spine sends legal notice.",
+      "Walk around. Blink. Be a person for a minute.",
+      "Recovery first. Heroic debugging later.",
     ];
-    const memeMessage =
-      memeMessages[recoveryState.activeBreak.cycle % memeMessages.length];
 
     return {
       kind: "break",
       title: "bro step away from the keyboard",
-      message: memeMessage,
+      message:
+        memeMessages[
+          recoveryState.activeBreak.cycle % memeMessages.length
+        ],
       endsAt: recoveryState.activeBreak.endsAt,
       unlockTimeLabel: formatClockTime(recoveryState.activeBreak.endsAt),
       allowPhraseUnlock: recoveryState.activeBreak.allowPhraseUnlock,
@@ -96,7 +134,7 @@ function getOverlayPayload(appState: StoredAppState): OverlayPayload | null {
     return {
       kind: "shutdown",
       title: "you're done for today",
-      message: `Locked until ${formatClockTime(recoveryState.shutdown.unlockAt)}.`,
+      message: `Shutdown lock until ${formatClockTime(recoveryState.shutdown.unlockAt)}.`,
       endsAt: recoveryState.shutdown.unlockAt,
       unlockTimeLabel: formatClockTime(recoveryState.shutdown.unlockAt),
       allowPhraseUnlock: false,
@@ -107,21 +145,6 @@ function getOverlayPayload(appState: StoredAppState): OverlayPayload | null {
   }
 
   return null;
-}
-
-function isLockedMode(appState: StoredAppState): boolean {
-  return (
-    appState.recoveryState.mode === "BREAK" ||
-    appState.recoveryState.mode === "SHUTDOWN"
-  );
-}
-
-function getLockedPageUrl(): string {
-  return chrome.runtime.getURL("newtab/index.html");
-}
-
-function isExtensionPage(url: string): boolean {
-  return url.startsWith(chrome.runtime.getURL(""));
 }
 
 async function redirectTabToLockedPage(tabId: number): Promise<void> {
@@ -166,7 +189,10 @@ async function clearWorkAndBreakAlarms(): Promise<void> {
   await chrome.alarms.clear(ALARM_NAMES.BREAK_END);
 }
 
-async function syncOverlayToTab(tab: chrome.tabs.Tab, payload: OverlayPayload | null): Promise<void> {
+async function syncOverlayToTab(
+  tab: chrome.tabs.Tab,
+  payload: OverlayPayload | null,
+): Promise<void> {
   if (!tab.id || !isTabScriptable(tab)) {
     return;
   }
@@ -213,6 +239,39 @@ async function writeAppState(appState: StoredAppState): Promise<void> {
   await syncOverlayEverywhere(appState);
 }
 
+async function startWorkingFromState(
+  appState: StoredAppState,
+  cycle: number,
+  goalSnapshot: string,
+  sessionId?: ActiveSession["id"],
+  remainingMs?: number,
+): Promise<StoredAppState> {
+  const activeSession = createWorkingSession(
+    appState,
+    cycle,
+    goalSnapshot,
+    sessionId,
+    remainingMs,
+  );
+  const nextState: StoredAppState = {
+    ...appState,
+    recoveryState: {
+      mode: "WORKING",
+      activeSession,
+      pausedWork: null,
+      activeBreak: null,
+      checkIn: null,
+      shutdown: null,
+      lastUpdatedAt: Date.now(),
+    },
+  };
+
+  await clearWorkAndBreakAlarms();
+  await scheduleAlarm(ALARM_NAMES.WORK_END, activeSession.endsAt);
+  await writeAppState(nextState);
+  return nextState;
+}
+
 async function startWorkingSession(baseState?: StoredAppState): Promise<StoredAppState> {
   const appState = baseState ?? (await getStoredAppState());
 
@@ -227,50 +286,81 @@ async function startWorkingSession(baseState?: StoredAppState): Promise<StoredAp
     return appState;
   }
 
-  const now = Date.now();
-  const nextState: StoredAppState = {
-    ...appState,
-    recoveryState: {
-      mode: "WORKING",
-      activeSession: {
-        id: crypto.randomUUID(),
-        cycle: getNextCycleNumber(appState),
-        startedAt: now,
-        endsAt: now + getEffectiveWorkDurationMs(appState.settings),
-        goalSnapshot: appState.settings.goal,
-      },
-      activeBreak: null,
-      shutdown: null,
-      lastUpdatedAt: now,
-    },
-  };
-  const scheduledSession = nextState.recoveryState.activeSession;
-
-  await clearWorkAndBreakAlarms();
-  if (scheduledSession) {
-    await scheduleAlarm(ALARM_NAMES.WORK_END, scheduledSession.endsAt);
-  }
-  await writeAppState(nextState);
-  return nextState;
+  return startWorkingFromState(
+    appState,
+    getNextCycleNumber(appState),
+    appState.settings.goal,
+  );
 }
 
 async function returnToIdle(): Promise<StoredAppState> {
   const appState = await getStoredAppState();
-  const now = Date.now();
   const nextState: StoredAppState = {
     ...appState,
     recoveryState: {
       mode: "IDLE",
       activeSession: null,
+      pausedWork: null,
       activeBreak: null,
+      checkIn: null,
       shutdown: null,
-      lastUpdatedAt: now,
+      lastUpdatedAt: Date.now(),
     },
   };
 
   await clearWorkAndBreakAlarms();
   await writeAppState(nextState);
   return nextState;
+}
+
+async function pauseWorkingSession(): Promise<StoredAppState> {
+  const appState = await getStoredAppState();
+  const activeSession = appState.recoveryState.activeSession;
+
+  if (!activeSession) {
+    return appState;
+  }
+
+  const remainingMs = Math.max(1_000, activeSession.endsAt - Date.now());
+  const nextState: StoredAppState = {
+    ...appState,
+    recoveryState: {
+      mode: "PAUSED",
+      activeSession: null,
+      pausedWork: {
+        sessionId: activeSession.id,
+        cycle: activeSession.cycle,
+        pausedAt: Date.now(),
+        remainingMs,
+        goalSnapshot: activeSession.goalSnapshot,
+      },
+      activeBreak: null,
+      checkIn: null,
+      shutdown: null,
+      lastUpdatedAt: Date.now(),
+    },
+  };
+
+  await clearWorkAndBreakAlarms();
+  await writeAppState(nextState);
+  return nextState;
+}
+
+async function resumePausedSession(): Promise<StoredAppState> {
+  const appState = await getStoredAppState();
+  const pausedWork = appState.recoveryState.pausedWork;
+
+  if (!pausedWork) {
+    return appState;
+  }
+
+  return startWorkingFromState(
+    appState,
+    pausedWork.cycle,
+    pausedWork.goalSnapshot,
+    pausedWork.sessionId,
+    pausedWork.remainingMs,
+  );
 }
 
 async function moveWorkingToBreak(): Promise<StoredAppState> {
@@ -291,6 +381,7 @@ async function moveWorkingToBreak(): Promise<StoredAppState> {
     recoveryState: {
       mode: "BREAK",
       activeSession: null,
+      pausedWork: null,
       activeBreak: {
         sessionId: activeSession.id,
         cycle: activeSession.cycle,
@@ -299,47 +390,71 @@ async function moveWorkingToBreak(): Promise<StoredAppState> {
         unlockPhrase: appState.settings.earlyUnlockPhrase,
         allowPhraseUnlock: true,
       },
+      checkIn: null,
       shutdown: null,
       lastUpdatedAt: now,
     },
   };
-  const activeBreak = nextState.recoveryState.activeBreak;
 
   await clearWorkAndBreakAlarms();
-  if (activeBreak) {
-    await scheduleAlarm(ALARM_NAMES.BREAK_END, activeBreak.endsAt);
+  if (nextState.recoveryState.activeBreak) {
+    await scheduleAlarm(ALARM_NAMES.BREAK_END, nextState.recoveryState.activeBreak.endsAt);
   }
   await writeAppState(nextState);
   return nextState;
 }
 
-async function moveBreakToWorking(): Promise<StoredAppState> {
+async function moveBreakToCheckIn(): Promise<StoredAppState> {
   const appState = await getStoredAppState();
-  const now = Date.now();
+  const activeBreak = appState.recoveryState.activeBreak;
+
+  if (!activeBreak) {
+    return appState;
+  }
+
   const nextState: StoredAppState = {
     ...appState,
     recoveryState: {
-      mode: "WORKING",
-      activeSession: {
-        id: crypto.randomUUID(),
-        cycle: (appState.recoveryState.activeBreak?.cycle ?? getNextCycleNumber(appState)) + 1,
-        startedAt: now,
-        endsAt: now + getEffectiveWorkDurationMs(appState.settings),
+      mode: "CHECK_IN",
+      activeSession: null,
+      pausedWork: null,
+      activeBreak: null,
+      checkIn: {
+        sessionId: activeBreak.sessionId,
+        cycle: activeBreak.cycle,
+        readyAt: Date.now(),
         goalSnapshot: appState.settings.goal,
       },
-      activeBreak: null,
       shutdown: null,
-      lastUpdatedAt: now,
+      lastUpdatedAt: Date.now(),
     },
   };
-  const scheduledSession = nextState.recoveryState.activeSession;
 
   await clearWorkAndBreakAlarms();
-  if (scheduledSession) {
-    await scheduleAlarm(ALARM_NAMES.WORK_END, scheduledSession.endsAt);
-  }
   await writeAppState(nextState);
   return nextState;
+}
+
+async function handleCheckInDecision(action: CheckInAction): Promise<StoredAppState> {
+  const appState = await getStoredAppState();
+  const checkIn = appState.recoveryState.checkIn;
+
+  if (!checkIn) {
+    return appState;
+  }
+
+  if (action === "stop") {
+    return returnToIdle();
+  }
+
+  const goalSnapshot =
+    action === "resume_same_goal" ? checkIn.goalSnapshot : appState.settings.goal;
+
+  return startWorkingFromState(
+    appState,
+    checkIn.cycle + 1,
+    goalSnapshot,
+  );
 }
 
 async function enterShutdown(): Promise<StoredAppState> {
@@ -351,7 +466,9 @@ async function enterShutdown(): Promise<StoredAppState> {
     recoveryState: {
       mode: "SHUTDOWN",
       activeSession: null,
+      pausedWork: null,
       activeBreak: null,
+      checkIn: null,
       shutdown: {
         startedAt: now,
         unlockAt,
@@ -377,9 +494,7 @@ async function exitShutdown(): Promise<StoredAppState> {
   return returnToIdle();
 }
 
-async function applySettings(
-  payload: Partial<UserSettings>,
-): Promise<StoredAppState> {
+async function applySettings(payload: Partial<UserSettings>): Promise<StoredAppState> {
   const appState = await getStoredAppState();
   const mergedSettings = sanitizeSettings({
     ...appState.settings,
@@ -417,7 +532,7 @@ async function hydrateFromStorage(): Promise<void> {
 
   if (appState.recoveryState.mode === "BREAK" && appState.recoveryState.activeBreak) {
     if (appState.recoveryState.activeBreak.endsAt <= now) {
-      await moveBreakToWorking();
+      await moveBreakToCheckIn();
       return;
     }
 
@@ -445,7 +560,7 @@ async function handleAlarm(alarm: chrome.alarms.Alarm): Promise<void> {
       await moveWorkingToBreak();
       break;
     case ALARM_NAMES.BREAK_END:
-      await moveBreakToWorking();
+      await moveBreakToCheckIn();
       break;
     case ALARM_NAMES.DAILY_SHUTDOWN:
       await enterShutdown();
@@ -512,29 +627,33 @@ chrome.runtime.onMessage.addListener(
     void (async () => {
       try {
         switch (message.type) {
-          case "GET_APP_STATE": {
+          case "GET_APP_STATE":
             sendResponse({ ok: true, appState: await getStoredAppState() });
             return;
-          }
-          case "GET_OVERLAY_STATUS": {
+          case "GET_OVERLAY_STATUS":
             sendResponse({
               ok: true,
               overlay: getOverlayPayload(await getStoredAppState()),
             });
             return;
-          }
-          case "START_SESSION": {
+          case "START_SESSION":
             sendResponse({ ok: true, appState: await startWorkingSession() });
             return;
-          }
-          case "END_SESSION": {
+          case "END_SESSION":
             sendResponse({ ok: true, appState: await returnToIdle() });
             return;
-          }
-          case "UPDATE_SETTINGS": {
+          case "PAUSE_SESSION":
+            sendResponse({ ok: true, appState: await pauseWorkingSession() });
+            return;
+          case "RESUME_SESSION":
+            sendResponse({ ok: true, appState: await resumePausedSession() });
+            return;
+          case "CHECK_IN_DECISION":
+            sendResponse({ ok: true, appState: await handleCheckInDecision(message.action) });
+            return;
+          case "UPDATE_SETTINGS":
             sendResponse({ ok: true, appState: await applySettings(message.payload) });
             return;
-          }
           case "UNLOCK_BREAK_EARLY": {
             const appState = await getStoredAppState();
             const activeBreak = appState.recoveryState.activeBreak;
@@ -548,7 +667,7 @@ chrome.runtime.onMessage.addListener(
               return;
             }
 
-            sendResponse({ ok: true, appState: await moveBreakToWorking() });
+            sendResponse({ ok: true, appState: await moveBreakToCheckIn() });
             return;
           }
           case "DISMISS_OVERLAY_DEV": {
@@ -560,7 +679,7 @@ chrome.runtime.onMessage.addListener(
             const appState = await getStoredAppState();
 
             if (appState.recoveryState.mode === "BREAK") {
-              sendResponse({ ok: true, appState: await moveBreakToWorking() });
+              sendResponse({ ok: true, appState: await moveBreakToCheckIn() });
               return;
             }
 

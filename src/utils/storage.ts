@@ -11,7 +11,9 @@ function createDefaultRecoveryState(): RecoveryState {
   return {
     mode: "IDLE",
     activeSession: null,
+    pausedWork: null,
     activeBreak: null,
+    checkIn: null,
     shutdown: null,
     lastUpdatedAt: Date.now(),
   };
@@ -112,7 +114,9 @@ export function normalizeAppState(raw: unknown): StoredAppState {
     recoveryState: {
       mode:
         recoveryState.mode === "WORKING" ||
+        recoveryState.mode === "PAUSED" ||
         recoveryState.mode === "BREAK" ||
+        recoveryState.mode === "CHECK_IN" ||
         recoveryState.mode === "SHUTDOWN"
           ? recoveryState.mode
           : "IDLE",
@@ -131,6 +135,21 @@ export function normalizeAppState(raw: unknown): StoredAppState {
             ),
           }
         : null,
+      pausedWork: recoveryState.pausedWork
+        ? {
+            sessionId:
+              typeof recoveryState.pausedWork.sessionId === "string"
+                ? recoveryState.pausedWork.sessionId
+                : crypto.randomUUID(),
+            cycle: sanitizePositiveInteger(recoveryState.pausedWork.cycle, 1),
+            pausedAt: Number(recoveryState.pausedWork.pausedAt) || Date.now(),
+            remainingMs: Math.max(1_000, Number(recoveryState.pausedWork.remainingMs) || 60_000),
+            goalSnapshot: sanitizeText(
+              recoveryState.pausedWork.goalSnapshot,
+              DEFAULT_SETTINGS.goal,
+            ),
+          }
+        : null,
       activeBreak: recoveryState.activeBreak
         ? {
             sessionId:
@@ -145,6 +164,20 @@ export function normalizeAppState(raw: unknown): StoredAppState {
               DEFAULT_SETTINGS.earlyUnlockPhrase,
             ),
             allowPhraseUnlock: recoveryState.activeBreak.allowPhraseUnlock !== false,
+          }
+        : null,
+      checkIn: recoveryState.checkIn
+        ? {
+            sessionId:
+              typeof recoveryState.checkIn.sessionId === "string"
+                ? recoveryState.checkIn.sessionId
+                : crypto.randomUUID(),
+            cycle: sanitizePositiveInteger(recoveryState.checkIn.cycle, 1),
+            readyAt: Number(recoveryState.checkIn.readyAt) || Date.now(),
+            goalSnapshot: sanitizeText(
+              recoveryState.checkIn.goalSnapshot,
+              DEFAULT_SETTINGS.goal,
+            ),
           }
         : null,
       shutdown: recoveryState.shutdown

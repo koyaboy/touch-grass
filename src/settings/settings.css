@@ -8,24 +8,113 @@ body {
   margin: 0;
   min-height: 100vh;
   font-family: "Segoe UI", system-ui, sans-serif;
-  background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.28), transparent 26%),
-    linear-gradient(180deg, #dfe4dd 0%, #cfd8cf 100%);
-  color: #172018;
+  background: #0f1512;
 }
 
-@media (prefers-color-scheme: dark) {
-  body {
-    background:
-      radial-gradient(circle at top left, rgba(255, 255, 255, 0.08), transparent 28%),
-      linear-gradient(180deg, #101811 0%, #0d1310 100%);
-    color: #f2efe5;
-  }
+.settings-page {
+  min-height: 100vh;
+  color: #f5f0e7;
+}
+
+.settings-hero {
+  min-height: 100vh;
+  padding: 24px;
+  background:
+    linear-gradient(180deg, rgba(8, 12, 20, 0.36), rgba(8, 12, 20, 0.8)),
+    url("https://images.unsplash.com/photo-1493246507139-91e8fad9978e?auto=format&fit=crop&w=1800&q=80");
+  background-size: cover;
+  background-position: center;
+}
+
+.settings-shell {
+  margin: 0 auto;
+  max-width: 1120px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 38px;
+  padding: 28px;
+  background: rgba(10, 16, 13, 0.54);
+  backdrop-filter: blur(24px);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.28);
+}
+
+.settings-kicker {
+  font-size: 11px;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.54);
 }
 
 .settings-heading {
   font-family: Georgia, "Times New Roman", serif;
   letter-spacing: -0.04em;
+}
+
+.settings-link {
+  align-self: flex-start;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 12px 18px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.84);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.settings-card {
+  border-radius: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 22px;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(18px);
+}
+
+.settings-card-kicker {
+  margin: 0 0 18px;
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.settings-field {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.settings-field span {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.settings-field input {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  padding: 14px 16px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.settings-note {
+  border-radius: 24px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.settings-save {
+  border: 0;
+  border-radius: 999px;
+  padding: 14px 22px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  cursor: pointer;
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.94);
 }
 
 .settings-lock {
@@ -37,13 +126,6 @@ body {
   padding: 24px;
   background: rgba(2, 6, 23, 0.6);
   backdrop-filter: blur(8px);
-}
-
-.settings-shell {
-  border: 1px solid rgba(255, 255, 255, 0.38);
-  background: rgba(255, 255, 255, 0.5);
-  backdrop-filter: blur(24px);
-  box-shadow: 0 22px 70px rgba(15, 23, 42, 0.12);
 }
 
 .settings-lock-card {
