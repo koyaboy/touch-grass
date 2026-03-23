@@ -26,6 +26,42 @@ export function getNextOccurrence(time: string, from = Date.now()): number {
   return next.getTime();
 }
 
+export function getActiveTimeWindow(
+  startTime: string,
+  endTime: string,
+  now = Date.now(),
+): { startsAt: number; endsAt: number } | null {
+  if (!startTime || !endTime) {
+    return null;
+  }
+
+  const { hours: startHours, minutes: startMinutes } = parseClockTime(startTime);
+  const { hours: endHours, minutes: endMinutes } = parseClockTime(endTime);
+
+  const startsAt = new Date(now);
+  startsAt.setHours(startHours, startMinutes, 0, 0);
+
+  if (startsAt.getTime() > now) {
+    startsAt.setDate(startsAt.getDate() - 1);
+  }
+
+  const endsAt = new Date(startsAt);
+  endsAt.setHours(endHours, endMinutes, 0, 0);
+
+  if (endsAt.getTime() <= startsAt.getTime()) {
+    endsAt.setDate(endsAt.getDate() + 1);
+  }
+
+  if (now >= startsAt.getTime() && now < endsAt.getTime()) {
+    return {
+      startsAt: startsAt.getTime(),
+      endsAt: endsAt.getTime(),
+    };
+  }
+
+  return null;
+}
+
 export function startOfLocalDay(timestamp = Date.now()): number {
   const date = new Date(timestamp);
   date.setHours(0, 0, 0, 0);

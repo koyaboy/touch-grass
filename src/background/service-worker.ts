@@ -23,7 +23,7 @@ import {
   sanitizeSettings,
   setStoredAppState,
 } from "../utils/storage";
-import { formatClockTime, getNextOccurrence } from "../utils/time";
+import { formatClockTime, getActiveTimeWindow, getNextOccurrence } from "../utils/time";
 
 const NON_SCRIPTABLE_PROTOCOLS = ["chrome://", "chrome-extension://", "edge://", "about:"];
 const NEW_TAB_PROTOCOLS = ["chrome://newtab/", "edge://newtab/"];
@@ -43,7 +43,11 @@ function isTabScriptable(tab: chrome.tabs.Tab): boolean {
 }
 
 function isLockedMode(appState: StoredAppState): boolean {
-  return appState.recoveryState.mode === "BREAK" || appState.recoveryState.mode === "SHUTDOWN";
+  return (
+    appState.recoveryState.mode === "BREAK" ||
+    appState.recoveryState.mode === "CHECK_IN" ||
+    appState.recoveryState.mode === "SHUTDOWN"
+  );
 }
 
 function getNextCycleNumber(appState: StoredAppState): number {
@@ -180,6 +184,12 @@ async function scheduleAlarm(name: string, when: number): Promise<void> {
 }
 
 async function scheduleDailyAlarms(settings: UserSettings): Promise<void> {
+  if (!settings.hardShutdownTime || !settings.workStartTime) {
+    await chrome.alarms.clear(ALARM_NAMES.DAILY_SHUTDOWN);
+    await chrome.alarms.clear(ALARM_NAMES.DAILY_UNLOCK);
+    return;
+  }
+
   await scheduleAlarm(ALARM_NAMES.DAILY_SHUTDOWN, getNextOccurrence(settings.hardShutdownTime));
   await scheduleAlarm(ALARM_NAMES.DAILY_UNLOCK, getNextOccurrence(settings.workStartTime));
 }
@@ -232,6 +242,17 @@ async function syncOverlayEverywhere(appState: StoredAppState): Promise<void> {
   const payload = getOverlayPayload(appState);
   const tabs = await chrome.tabs.query({});
   await Promise.all(tabs.map((tab) => syncOverlayToTab(tab, payload)));
+}
+
+async function redirectActiveTabToCheckIn(): Promise<void> {
+  const [activeTab] = await chrome.tabs.query({
+    active: true,
+    lastFocusedWindow: true,
+  });
+
+  if (activeTab?.id) {
+    await redirectTabToLockedPage(activeTab.id);
+  }
 }
 
 async function writeAppState(appState: StoredAppState): Promise<void> {
@@ -318,6 +339,7 @@ async function pauseWorkingSession(): Promise<StoredAppState> {
   const activeSession = appState.recoveryState.activeSession;
 
   if (!activeSession) {
+    log("pause skipped: no active session", appState.recoveryState.mode);
     return appState;
   }
 
@@ -343,6 +365,7 @@ async function pauseWorkingSession(): Promise<StoredAppState> {
 
   await clearWorkAndBreakAlarms();
   await writeAppState(nextState);
+  log("state transition", "WORKING", "->", "PAUSED");
   return nextState;
 }
 
@@ -351,16 +374,20 @@ async function resumePausedSession(): Promise<StoredAppState> {
   const pausedWork = appState.recoveryState.pausedWork;
 
   if (!pausedWork) {
+    log("resume skipped: no paused work", appState.recoveryState.mode);
     return appState;
   }
 
-  return startWorkingFromState(
+  const nextState = await startWorkingFromState(
     appState,
     pausedWork.cycle,
     pausedWork.goalSnapshot,
     pausedWork.sessionId,
     pausedWork.remainingMs,
   );
+
+  log("state transition", "PAUSED", "->", "WORKING");
+  return nextState;
 }
 
 async function moveWorkingToBreak(): Promise<StoredAppState> {
@@ -401,6 +428,7 @@ async function moveWorkingToBreak(): Promise<StoredAppState> {
     await scheduleAlarm(ALARM_NAMES.BREAK_END, nextState.recoveryState.activeBreak.endsAt);
   }
   await writeAppState(nextState);
+  log("state transition", "WORKING", "->", "BREAK");
   return nextState;
 }
 
@@ -432,6 +460,8 @@ async function moveBreakToCheckIn(): Promise<StoredAppState> {
 
   await clearWorkAndBreakAlarms();
   await writeAppState(nextState);
+  await redirectActiveTabToCheckIn();
+  log("state transition", "BREAK", "->", "CHECK_IN");
   return nextState;
 }
 
@@ -444,23 +474,29 @@ async function handleCheckInDecision(action: CheckInAction): Promise<StoredAppSt
   }
 
   if (action === "stop") {
+    log("state transition", "CHECK_IN", "->", "IDLE");
     return returnToIdle();
   }
 
   const goalSnapshot =
     action === "resume_same_goal" ? checkIn.goalSnapshot : appState.settings.goal;
 
-  return startWorkingFromState(
+  const nextState = await startWorkingFromState(
     appState,
     checkIn.cycle + 1,
     goalSnapshot,
   );
+
+  log("state transition", "CHECK_IN", "->", "WORKING", action);
+  return nextState;
 }
 
-async function enterShutdown(): Promise<StoredAppState> {
+async function enterShutdown(
+  existingWindow?: { startsAt: number; endsAt: number },
+): Promise<StoredAppState> {
   const appState = await getStoredAppState();
   const now = Date.now();
-  const unlockAt = getNextOccurrence(appState.settings.workStartTime, now);
+  const unlockAt = existingWindow?.endsAt ?? getNextOccurrence(appState.settings.workStartTime, now);
   const nextState: StoredAppState = {
     ...appState,
     recoveryState: {
@@ -470,7 +506,7 @@ async function enterShutdown(): Promise<StoredAppState> {
       activeBreak: null,
       checkIn: null,
       shutdown: {
-        startedAt: now,
+        startedAt: existingWindow?.startsAt ?? now,
         unlockAt,
       },
       lastUpdatedAt: now,
@@ -520,6 +556,24 @@ async function applySettings(payload: Partial<UserSettings>): Promise<StoredAppS
 async function hydrateFromStorage(): Promise<void> {
   const appState = await getStoredAppState();
   const now = Date.now();
+  const shutdownWindow = getActiveTimeWindow(
+    appState.settings.hardShutdownTime,
+    appState.settings.workStartTime,
+    now,
+  );
+
+  if (shutdownWindow) {
+    if (
+      appState.recoveryState.mode !== "SHUTDOWN" ||
+      appState.recoveryState.shutdown?.unlockAt !== shutdownWindow.endsAt
+    ) {
+      await enterShutdown(shutdownWindow);
+      return;
+    }
+  } else if (appState.recoveryState.mode === "SHUTDOWN") {
+    await exitShutdown();
+    return;
+  }
 
   if (appState.recoveryState.mode === "WORKING" && appState.recoveryState.activeSession) {
     if (appState.recoveryState.activeSession.endsAt <= now) {

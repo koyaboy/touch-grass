@@ -37,6 +37,12 @@ let liveTimerId: number | null = null;
 let goalDraft = "";
 let lastMode = "IDLE";
 
+function log(...args: unknown[]): void {
+  if (DEV_MODE) {
+    console.log("[touch-grass:newtab]", ...args);
+  }
+}
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -164,9 +170,9 @@ function renderCheckIn(state: StoredAppState): string {
         <p class="text-[11px] uppercase tracking-[0.34em] text-white/48">Current goal</p>
         <p class="mt-4 text-3xl text-white md:text-5xl">${escapeHtml(checkIn.goalSnapshot)}</p>
         <div class="mt-8 grid gap-3 md:grid-cols-3">
-          <button data-checkin="resume_same_goal" class="tg-action-button">Keep going</button>
-          <button data-checkin="resume_new_goal" class="tg-action-button tg-action-button--muted">Something else</button>
-          <button data-checkin="stop" class="tg-action-button tg-action-button--ghost">Done</button>
+          <button type="button" data-checkin="resume_same_goal" class="tg-action-button">Keep going</button>
+          <button type="button" data-checkin="resume_new_goal" class="tg-action-button tg-action-button--muted">Something else</button>
+          <button type="button" data-checkin="stop" class="tg-action-button tg-action-button--ghost">Done</button>
         </div>
       </div>
 
@@ -202,6 +208,7 @@ function renderIdle(state: StoredAppState, todaySessions: ReturnType<typeof getT
           placeholder="lock in"
         />
         <button
+          type="button"
           id="start-session-button"
           class="tg-action-button mt-8"
         >
@@ -291,8 +298,8 @@ function renderWorking(state: StoredAppState, totalFocusMinutes: number): string
           </div>
 
           <div class="grid gap-3 sm:grid-cols-2">
-            <button id="pause-session-button" class="tg-action-button tg-action-button--muted">Pause</button>
-            <button id="end-session-button" class="tg-action-button tg-action-button--ghost">End</button>
+            <button type="button" id="pause-session-button" class="tg-action-button tg-action-button--muted">Pause</button>
+            <button type="button" id="end-session-button" class="tg-action-button tg-action-button--ghost">End</button>
           </div>
 
           <article class="tg-glass rounded-[28px] p-5">
@@ -324,8 +331,8 @@ function renderPaused(state: StoredAppState): string {
         <p class="mt-4 text-3xl text-white md:text-5xl">${escapeHtml(pausedWork.goalSnapshot)}</p>
         <div class="mt-8 text-5xl font-semibold tracking-[-0.05em] text-white md:text-7xl" data-role="paused-countdown">${formatDuration(pausedWork.remainingMs)}</div>
         <div class="mt-8 grid gap-3 md:grid-cols-2">
-          <button id="resume-session-button" class="tg-action-button">Resume</button>
-          <button id="end-session-button" class="tg-action-button tg-action-button--ghost">End</button>
+          <button type="button" id="resume-session-button" class="tg-action-button">Resume</button>
+          <button type="button" id="end-session-button" class="tg-action-button tg-action-button--ghost">End</button>
         </div>
       </div>
     </section>
@@ -468,35 +475,76 @@ function render(): void {
   });
 
   document.querySelectorAll("[data-checkin]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
       const action = (button as HTMLElement).getAttribute("data-checkin") as CheckInAction | null;
       if (action) {
-        void request({ type: "CHECK_IN_DECISION", action });
+        try {
+          const response = await request({ type: "CHECK_IN_DECISION", action });
+          if (response.ok && response.appState) {
+            log("check-in action", action, response.appState.recoveryState.mode);
+            applyState(response.appState);
+          }
+        } catch (error) {
+          log("check-in failed", action, error);
+        }
       }
     });
   });
 
   startButton?.addEventListener("click", async () => {
-    const response = await request({ type: "START_SESSION" });
-    if (response.ok) {
-      playSound(SOUND_FILES.sessionStart);
+    try {
+      const response = await request({ type: "START_SESSION" });
+      if (response.ok && response.appState) {
+        log("start session", response.appState.recoveryState.mode);
+        applyState(response.appState);
+        playSound(SOUND_FILES.sessionStart);
+      }
+    } catch (error) {
+      log("start session failed", error);
     }
   });
 
-  pauseButton?.addEventListener("click", () => {
-    void request({ type: "PAUSE_SESSION" });
+  pauseButton?.addEventListener("click", async () => {
+    try {
+      const response = await request({ type: "PAUSE_SESSION" });
+      if (response.ok && response.appState) {
+        log("pause session", response.appState.recoveryState.mode);
+        applyState(response.appState);
+      }
+    } catch (error) {
+      log("pause session failed", error);
+    }
   });
 
-  resumeButton?.addEventListener("click", () => {
-    void request({ type: "RESUME_SESSION" });
+  resumeButton?.addEventListener("click", async () => {
+    try {
+      const response = await request({ type: "RESUME_SESSION" });
+      if (response.ok && response.appState) {
+        log("resume session", response.appState.recoveryState.mode);
+        applyState(response.appState);
+      }
+    } catch (error) {
+      log("resume session failed", error);
+    }
   });
 
-  endButton?.addEventListener("click", () => {
-    void request({ type: "END_SESSION" });
+  endButton?.addEventListener("click", async () => {
+    try {
+      const response = await request({ type: "END_SESSION" });
+      if (response.ok && response.appState) {
+        log("end session", response.appState.recoveryState.mode);
+        applyState(response.appState);
+      }
+    } catch (error) {
+      log("end session failed", error);
+    }
   });
 
-  devBypassButton?.addEventListener("click", () => {
-    void request({ type: "DISMISS_OVERLAY_DEV" });
+  devBypassButton?.addEventListener("click", async () => {
+    const response = await request({ type: "DISMISS_OVERLAY_DEV" });
+    if (response.ok && response.appState) {
+      applyState(response.appState);
+    }
   });
 
   startLiveTicker();
