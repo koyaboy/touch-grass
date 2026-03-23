@@ -17,7 +17,6 @@ const ROOT_ID = "touch-grass-overlay-root";
 
 let currentPayload: OverlayPayload | null = null;
 let tickerId: number | null = null;
-let lastSoundKey = "";
 
 const BREAK_IMAGES = [
   "https://images.unsplash.com/photo-1511497584788-876760111969?auto=format&fit=crop&w=900&q=80",
@@ -52,17 +51,6 @@ function getRoot(): HTMLDivElement {
   }
 
   return root;
-}
-
-function playSound(soundPath: string): void {
-  if (!soundPath || soundPath === lastSoundKey) {
-    return;
-  }
-
-  lastSoundKey = soundPath;
-
-  const audio = new Audio(chrome.runtime.getURL(soundPath));
-  void audio.play().catch(() => undefined);
 }
 
 function getClockBucket(): number {
@@ -262,9 +250,6 @@ function render(payload: OverlayPayload | null): void {
       void handleDevBypass();
     });
   }
-
-  playSound(payload.sound);
-
   if (tickerId) {
     window.clearInterval(tickerId);
   }

@@ -1,4 +1,4 @@
-import { DEV_MODE, SOUND_FILES, STORAGE_KEY } from "../config";
+import { DEV_MODE, STORAGE_KEY } from "../config";
 import type { RuntimeResponseMessage, StoredAppState } from "../types";
 import { normalizeAppState } from "../utils/storage";
 import { formatClockTime, formatDuration } from "../utils/time";
@@ -13,7 +13,6 @@ const appRoot = app;
 
 let appState: StoredAppState | null = null;
 let liveTimerId: number | null = null;
-let lastMode = "IDLE";
 
 function escapeHtml(value: string): string {
   return value
@@ -35,11 +34,6 @@ function request(message: object): Promise<RuntimeResponseMessage> {
       resolve(response);
     });
   });
-}
-
-function playSound(path: string): void {
-  const audio = new Audio(chrome.runtime.getURL(path));
-  void audio.play().catch(() => undefined);
 }
 
 function renderLiveValues(): void {
@@ -181,14 +175,8 @@ function render(): void {
 }
 
 function applyState(nextState: StoredAppState): void {
-  const previousMode = lastMode;
   appState = nextState;
-  lastMode = nextState.recoveryState.mode;
   render();
-
-  if (previousMode !== nextState.recoveryState.mode && nextState.recoveryState.mode === "SHUTDOWN") {
-    playSound(SOUND_FILES.shutdown);
-  }
 }
 
 chrome.storage.onChanged.addListener((changes, areaName) => {

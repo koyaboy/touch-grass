@@ -1,4 +1,4 @@
-import { DEV_MODE, SOUND_FILES, STORAGE_KEY } from "../config";
+import { DEV_MODE, SOUND_FILES, SOUND_VOLUME, STORAGE_KEY } from "../config";
 import type { CheckInAction, RuntimeResponseMessage, StoredAppState } from "../types";
 import { getTodaySessionHistory, normalizeAppState } from "../utils/storage";
 import { formatClockTime, formatDuration, formatMinutes, getNextOccurrence } from "../utils/time";
@@ -36,6 +36,7 @@ let appState: StoredAppState | null = null;
 let liveTimerId: number | null = null;
 let goalDraft = "";
 let lastMode = "IDLE";
+let lastSessionStartSound = "";
 
 function log(...args: unknown[]): void {
   if (DEV_MODE) {
@@ -52,13 +53,38 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#39;");
 }
 
-function playSound(path: string): void {
-  if (!path) {
+function pickRandomSessionStartSound(): string {
+  const soundOptions: readonly string[] = SOUND_FILES.sessionStart;
+
+  if (soundOptions.length === 0) {
+    return "";
+  }
+
+  if (soundOptions.length === 1) {
+    lastSessionStartSound = soundOptions[0];
+    return soundOptions[0];
+  }
+
+  const filtered = soundOptions.filter((option) => option !== lastSessionStartSound);
+  const candidatePool = filtered.length > 0 ? filtered : [...soundOptions];
+  const nextSound = candidatePool[Math.floor(Math.random() * candidatePool.length)];
+  lastSessionStartSound = nextSound;
+  return nextSound;
+}
+
+function playSessionStartSound(): void {
+  const soundPath = pickRandomSessionStartSound();
+
+  if (!soundPath) {
     return;
   }
 
-  const audio = new Audio(chrome.runtime.getURL(path));
-  void audio.play().catch(() => undefined);
+  const audio = new Audio(chrome.runtime.getURL(soundPath));
+  audio.volume = SOUND_VOLUME;
+
+  void audio.play().catch((error) => {
+    log("session sound failed", soundPath, error);
+  });
 }
 
 function getClockBucket(): number {
@@ -483,6 +509,9 @@ function render(): void {
           if (response.ok && response.appState) {
             log("check-in action", action, response.appState.recoveryState.mode);
             applyState(response.appState);
+            if (response.appState.recoveryState.mode === "WORKING") {
+              playSessionStartSound();
+            }
           }
         } catch (error) {
           log("check-in failed", action, error);
@@ -497,7 +526,9 @@ function render(): void {
       if (response.ok && response.appState) {
         log("start session", response.appState.recoveryState.mode);
         applyState(response.appState);
-        playSound(SOUND_FILES.sessionStart);
+        if (response.appState.recoveryState.mode === "WORKING") {
+          playSessionStartSound();
+        }
       }
     } catch (error) {
       log("start session failed", error);
@@ -563,13 +594,7 @@ function applyState(nextState: StoredAppState): void {
   render();
 
   if (previousMode !== nextState.recoveryState.mode) {
-    if (nextState.recoveryState.mode === "SHUTDOWN") {
-      playSound(SOUND_FILES.shutdown);
-    }
-
-    if (nextState.recoveryState.mode === "WORKING" && previousMode !== "PAUSED") {
-      playSound(SOUND_FILES.sessionStart);
-    }
+    log("mode change", previousMode, "->", nextState.recoveryState.mode);
   }
 }
 

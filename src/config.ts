@@ -17,17 +17,19 @@ export const OVERLAY_ASSETS = {
 } as const;
 
 export const SOUND_FILES = {
-  sessionStart: "sounds/session-start.mp3",
-  breakStart: "sounds/break-start.mp3",
-  shutdown: "sounds/shutdown.mp3",
+  sessionStart: ["sounds/session-start-1.mp3", "sounds/session-start-2.mp3"],
+  breakStart: ["sounds/break-start.mp3"],
+  shutdown: ["sounds/shutdown.mp3"],
 } as const;
 
+export const SOUND_VOLUME = 0.28;
+
 export const DEFAULT_SETTINGS: UserSettings = {
-  goal: "lock in",
-  workDurationMinutes: 50,
-  breakDurationMinutes: 10,
-  hardShutdownTime: "22:00",
-  workStartTime: "08:00",
+  goal: "",
+  workDurationMinutes: 45,
+  breakDurationMinutes: 15,
+  hardShutdownTime: "",
+  workStartTime: "05:00",
   earlyUnlockPhrase: "I took a break",
 };
 

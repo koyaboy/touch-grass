@@ -9,6 +9,7 @@ import {
 import type {
   ActiveSession,
   CheckInAction,
+  OffscreenRuntimeMessage,
   OverlayPayload,
   OverlaySyncMessage,
   RuntimeRequestMessage,
@@ -27,11 +28,92 @@ import { formatClockTime, getActiveTimeWindow, getNextOccurrence } from "../util
 
 const NON_SCRIPTABLE_PROTOCOLS = ["chrome://", "chrome-extension://", "edge://", "about:"];
 const NEW_TAB_PROTOCOLS = ["chrome://newtab/", "edge://newtab/"];
+const OFFSCREEN_DOCUMENT_PATH = "offscreen/index.html";
+
+let offscreenDocumentPromise: Promise<void> | null = null;
+const lastPlayedSoundByChannel = new Map<string, string>();
 
 function log(...args: unknown[]): void {
   if (DEV_MODE) {
     console.log("[touch-grass]", ...args);
   }
+}
+
+async function hasOffscreenDocument(path: string): Promise<boolean> {
+  const offscreenUrl = chrome.runtime.getURL(path);
+
+  if ("getContexts" in chrome.runtime) {
+    const getContexts = chrome.runtime.getContexts as unknown as (filter: {
+      contextTypes: string[];
+      documentUrls: string[];
+    }) => Promise<chrome.runtime.ExtensionContext[]>;
+    const contexts = await getContexts({
+      contextTypes: ["OFFSCREEN_DOCUMENT"],
+      documentUrls: [offscreenUrl],
+    });
+
+    return contexts.length > 0;
+  }
+
+  return false;
+}
+
+async function ensureOffscreenDocument(): Promise<void> {
+  if (await hasOffscreenDocument(OFFSCREEN_DOCUMENT_PATH)) {
+    return;
+  }
+
+  if (!offscreenDocumentPromise) {
+    offscreenDocumentPromise = chrome.offscreen.createDocument({
+      url: OFFSCREEN_DOCUMENT_PATH,
+      reasons: ["AUDIO_PLAYBACK"],
+      justification: "Play local extension sounds for session, break, and shutdown transitions.",
+    });
+  }
+
+  try {
+    await offscreenDocumentPromise;
+  } finally {
+    offscreenDocumentPromise = null;
+  }
+}
+
+async function playManagedSound(path: string, maxDurationMs?: number): Promise<void> {
+  if (!path) {
+    return;
+  }
+
+  try {
+    await ensureOffscreenDocument();
+    const message: OffscreenRuntimeMessage = {
+      target: "offscreen",
+      type: "PLAY_SOUND",
+      path,
+      maxDurationMs,
+    };
+    await chrome.runtime.sendMessage(message);
+  } catch (error) {
+    log("managed sound skipped", path, error);
+  }
+}
+
+function pickRandomSound(channel: string, soundOptions: readonly string[]): string {
+  if (soundOptions.length === 0) {
+    return "";
+  }
+
+  if (soundOptions.length === 1) {
+    const onlyOption = soundOptions[0];
+    lastPlayedSoundByChannel.set(channel, onlyOption);
+    return onlyOption;
+  }
+
+  const previous = lastPlayedSoundByChannel.get(channel);
+  const filtered = soundOptions.filter((option) => option !== previous);
+  const candidatePool = filtered.length > 0 ? filtered : [...soundOptions];
+  const nextSound = candidatePool[Math.floor(Math.random() * candidatePool.length)];
+  lastPlayedSoundByChannel.set(channel, nextSound);
+  return nextSound;
 }
 
 function isTabScriptable(tab: chrome.tabs.Tab): boolean {
@@ -129,7 +211,7 @@ function getOverlayPayload(appState: StoredAppState): OverlayPayload | null {
       unlockTimeLabel: formatClockTime(recoveryState.activeBreak.endsAt),
       allowPhraseUnlock: recoveryState.activeBreak.allowPhraseUnlock,
       unlockPhrase: settings.earlyUnlockPhrase,
-      sound: SOUND_FILES.breakStart,
+      sound: SOUND_FILES.breakStart[0] ?? "",
       showDevBypass: DEV_MODE,
     };
   }
@@ -143,7 +225,7 @@ function getOverlayPayload(appState: StoredAppState): OverlayPayload | null {
       unlockTimeLabel: formatClockTime(recoveryState.shutdown.unlockAt),
       allowPhraseUnlock: false,
       unlockPhrase: settings.earlyUnlockPhrase,
-      sound: SOUND_FILES.shutdown,
+      sound: SOUND_FILES.shutdown[0] ?? "",
       showDevBypass: DEV_MODE,
     };
   }
@@ -307,11 +389,12 @@ async function startWorkingSession(baseState?: StoredAppState): Promise<StoredAp
     return appState;
   }
 
-  return startWorkingFromState(
+  const nextState = await startWorkingFromState(
     appState,
     getNextCycleNumber(appState),
     appState.settings.goal,
   );
+  return nextState;
 }
 
 async function returnToIdle(): Promise<StoredAppState> {
@@ -428,6 +511,7 @@ async function moveWorkingToBreak(): Promise<StoredAppState> {
     await scheduleAlarm(ALARM_NAMES.BREAK_END, nextState.recoveryState.activeBreak.endsAt);
   }
   await writeAppState(nextState);
+  await playManagedSound(pickRandomSound("break", SOUND_FILES.breakStart));
   log("state transition", "WORKING", "->", "BREAK");
   return nextState;
 }
@@ -517,6 +601,7 @@ async function enterShutdown(
   await scheduleAlarm(ALARM_NAMES.DAILY_UNLOCK, unlockAt);
   await scheduleDailyAlarms(appState.settings);
   await writeAppState(nextState);
+  await playManagedSound(pickRandomSound("shutdown", SOUND_FILES.shutdown));
   return nextState;
 }
 

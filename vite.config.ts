@@ -15,6 +15,7 @@ export default defineConfig({
       input: {
         newtab: resolve(__dirname, "src/newtab/index.html"),
         settings: resolve(__dirname, "src/settings/index.html"),
+        offscreen: resolve(__dirname, "src/offscreen/index.html"),
         "service-worker": resolve(__dirname, "src/background/service-worker.ts"),
         overlay: resolve(__dirname, "src/overlay/overlay.ts"),
       },

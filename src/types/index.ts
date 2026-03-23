@@ -112,3 +112,10 @@ export interface OverlaySyncMessage {
   type: "OVERLAY_SYNC";
   payload: OverlayPayload | null;
 }
+
+export type OffscreenRuntimeMessage = {
+  target: "offscreen";
+  type: "PLAY_SOUND";
+  path: string;
+  maxDurationMs?: number;
+};
