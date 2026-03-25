@@ -147,4 +147,10 @@ export type OffscreenRuntimeMessage =
   | {
       target: "offscreen";
       type: "STOP_ALL";
+    }
+  | {
+      target: "offscreen";
+      type: "SYNC_BADGE";
+      mode: ExtensionMode;
+      endsAt?: number;
     };

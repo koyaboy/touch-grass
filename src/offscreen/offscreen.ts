@@ -3,6 +3,9 @@ import type { OffscreenRuntimeMessage } from "../types";
 
 const activeAudio = new Set<HTMLAudioElement>();
 const loopAudioByChannel = new Map<string, HTMLAudioElement>();
+let badgeTickerId: number | null = null;
+let badgeMode: OffscreenRuntimeMessage["mode"] | null = null;
+let badgeEndsAt: number | null = null;
 
 function cleanupAudio(audio: HTMLAudioElement): void {
   activeAudio.delete(audio);
@@ -114,6 +117,88 @@ function playSoundThenStartLoop(
   });
 }
 
+function formatBadgeCountdown(remainingMs: number): string {
+  if (remainingMs <= 0) {
+    return "0s";
+  }
+
+  if (remainingMs < 60_000) {
+    return `${Math.ceil(remainingMs / 1_000)}s`;
+  }
+
+  if (remainingMs < 60 * 60_000) {
+    return `${Math.ceil(remainingMs / 60_000)}m`;
+  }
+
+  return `${Math.ceil(remainingMs / (60 * 60_000))}h`;
+}
+
+function getBadgeText(): string {
+  if (
+    (badgeMode === "WORKING" || badgeMode === "BREAK" || badgeMode === "SHUTDOWN") &&
+    badgeEndsAt
+  ) {
+    return formatBadgeCountdown(badgeEndsAt - Date.now());
+  }
+
+  if (badgeMode === "PAUSED") {
+    return "II";
+  }
+
+  if (badgeMode === "CHECK_IN") {
+    return "?";
+  }
+
+  return "";
+}
+
+function getBadgeColor(): string {
+  switch (badgeMode) {
+    case "WORKING":
+      return "#14532d";
+    case "BREAK":
+      return "#c2410c";
+    case "SHUTDOWN":
+      return "#1e293b";
+    case "PAUSED":
+      return "#475569";
+    case "CHECK_IN":
+      return "#7c2d12";
+    default:
+      return "#0f172a";
+  }
+}
+
+async function renderBadge(): Promise<void> {
+  const text = getBadgeText();
+  await chrome.action.setBadgeBackgroundColor({ color: getBadgeColor() });
+  await chrome.action.setBadgeText({ text });
+}
+
+function stopBadgeTicker(): void {
+  if (badgeTickerId !== null) {
+    window.clearInterval(badgeTickerId);
+    badgeTickerId = null;
+  }
+}
+
+function syncBadge(mode: OffscreenRuntimeMessage["mode"], endsAt?: number): void {
+  badgeMode = mode;
+  badgeEndsAt = typeof endsAt === "number" ? endsAt : null;
+
+  stopBadgeTicker();
+  void renderBadge();
+
+  if (
+    badgeEndsAt &&
+    (badgeMode === "WORKING" || badgeMode === "BREAK" || badgeMode === "SHUTDOWN")
+  ) {
+    badgeTickerId = window.setInterval(() => {
+      void renderBadge();
+    }, 1_000);
+  }
+}
+
 chrome.runtime.onMessage.addListener((message: OffscreenRuntimeMessage) => {
   if (message.target !== "offscreen") {
     return;
@@ -140,6 +225,9 @@ chrome.runtime.onMessage.addListener((message: OffscreenRuntimeMessage) => {
       return;
     case "STOP_ALL":
       stopAllAudio();
+      return;
+    case "SYNC_BADGE":
+      syncBadge(message.mode, message.endsAt);
       return;
     default:
       return;

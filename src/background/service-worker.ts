@@ -69,7 +69,8 @@ async function ensureOffscreenDocument(): Promise<void> {
     offscreenDocumentPromise = chrome.offscreen.createDocument({
       url: OFFSCREEN_DOCUMENT_PATH,
       reasons: ["AUDIO_PLAYBACK"],
-      justification: "Play local extension sounds for session, break, and shutdown transitions.",
+      justification:
+        "Play local extension sounds and keep the current timer visible on the extension badge.",
     });
   }
 
@@ -160,6 +161,27 @@ async function stopManagedChannel(channel: string): Promise<void> {
     await chrome.runtime.sendMessage(message);
   } catch (error) {
     log("managed channel stop skipped", channel, error);
+  }
+}
+
+async function syncBadge(appState: StoredAppState): Promise<void> {
+  try {
+    await ensureOffscreenDocument();
+
+    const endsAt =
+      appState.recoveryState.activeSession?.endsAt ??
+      appState.recoveryState.activeBreak?.endsAt ??
+      appState.recoveryState.shutdown?.unlockAt;
+
+    const message: OffscreenRuntimeMessage = {
+      target: "offscreen",
+      type: "SYNC_BADGE",
+      mode: appState.recoveryState.mode,
+      endsAt,
+    };
+    await chrome.runtime.sendMessage(message);
+  } catch (error) {
+    log("badge sync skipped", error);
   }
 }
 
@@ -426,6 +448,7 @@ async function redirectActiveTabToCheckIn(): Promise<void> {
 async function writeAppState(appState: StoredAppState): Promise<void> {
   await setStoredAppState(appState);
   await syncOverlayEverywhere(appState);
+  await syncBadge(appState);
 }
 
 async function startWorkingFromState(
@@ -798,6 +821,7 @@ async function hydrateFromStorage(): Promise<void> {
   await scheduleDailyAlarms(appState.settings);
   await syncOverlayEverywhere(appState);
   await syncBreakAmbient(appState);
+  await syncBadge(appState);
 }
 
 async function handleAlarm(alarm: chrome.alarms.Alarm): Promise<void> {

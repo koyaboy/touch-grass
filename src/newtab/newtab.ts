@@ -1,7 +1,16 @@
 import { DEV_MODE, SOUND_FILES, SOUND_VOLUME, STORAGE_KEY } from "../config";
-import type { CheckInAction, RuntimeResponseMessage, StoredAppState } from "../types";
+import type {
+  CheckInAction,
+  RuntimeResponseMessage,
+  StoredAppState,
+} from "../types";
 import { getTodaySessionHistory, normalizeAppState } from "../utils/storage";
-import { formatClockTime, formatDuration, formatMinutes, getNextOccurrence } from "../utils/time";
+import {
+  formatClockTime,
+  formatDuration,
+  formatMinutes,
+  getNextOccurrence,
+} from "../utils/time";
 
 const app = document.getElementById("app");
 
@@ -71,9 +80,12 @@ function pickRandomSessionStartSound(): string {
     return soundOptions[0];
   }
 
-  const filtered = soundOptions.filter((option) => option !== lastSessionStartSound);
+  const filtered = soundOptions.filter(
+    (option) => option !== lastSessionStartSound,
+  );
   const candidatePool = filtered.length > 0 ? filtered : [...soundOptions];
-  const nextSound = candidatePool[Math.floor(Math.random() * candidatePool.length)];
+  const nextSound =
+    candidatePool[Math.floor(Math.random() * candidatePool.length)];
   lastSessionStartSound = nextSound;
   return nextSound;
 }
@@ -134,11 +146,17 @@ function request(message: object): Promise<RuntimeResponseMessage> {
 }
 
 function getShutdownWarning(state: StoredAppState): string | null {
-  if (state.recoveryState.mode === "SHUTDOWN" || !state.settings.hardShutdownTime) {
+  if (
+    state.recoveryState.mode === "SHUTDOWN" ||
+    !state.settings.hardShutdownTime
+  ) {
     return null;
   }
 
-  const nextShutdown = getNextOccurrence(state.settings.hardShutdownTime, Date.now() - 60_000);
+  const nextShutdown = getNextOccurrence(
+    state.settings.hardShutdownTime,
+    Date.now() - 60_000,
+  );
   const remainingMs = nextShutdown - Date.now();
 
   if (remainingMs <= 0 || remainingMs > 90 * 60_000) {
@@ -153,28 +171,43 @@ function renderLiveValues(): void {
     return;
   }
 
-  const workingCountdown = document.querySelector("[data-role='working-countdown']");
-  if (workingCountdown instanceof HTMLElement && appState.recoveryState.activeSession) {
+  const workingCountdown = document.querySelector(
+    "[data-role='working-countdown']",
+  );
+  if (
+    workingCountdown instanceof HTMLElement &&
+    appState.recoveryState.activeSession
+  ) {
     workingCountdown.textContent = formatDuration(
       appState.recoveryState.activeSession.endsAt - Date.now(),
     );
   }
 
-  const pausedCountdown = document.querySelector("[data-role='paused-countdown']");
-  if (pausedCountdown instanceof HTMLElement && appState.recoveryState.pausedWork) {
-    pausedCountdown.textContent = formatDuration(appState.recoveryState.pausedWork.remainingMs);
+  const pausedCountdown = document.querySelector(
+    "[data-role='paused-countdown']",
+  );
+  if (
+    pausedCountdown instanceof HTMLElement &&
+    appState.recoveryState.pausedWork
+  ) {
+    pausedCountdown.textContent = formatDuration(
+      appState.recoveryState.pausedWork.remainingMs,
+    );
   }
 
   const lockCountdown = document.querySelector("[data-role='lock-countdown']");
   if (lockCountdown instanceof HTMLElement) {
     const endsAt =
-      appState.recoveryState.activeBreak?.endsAt ?? appState.recoveryState.shutdown?.unlockAt;
+      appState.recoveryState.activeBreak?.endsAt ??
+      appState.recoveryState.shutdown?.unlockAt;
     if (endsAt) {
       lockCountdown.textContent = formatDuration(endsAt - Date.now());
     }
   }
 
-  const shutdownWarning = document.querySelector("[data-role='shutdown-warning']");
+  const shutdownWarning = document.querySelector(
+    "[data-role='shutdown-warning']",
+  );
   if (shutdownWarning instanceof HTMLElement) {
     shutdownWarning.textContent = getShutdownWarning(appState) ?? "";
   }
@@ -244,11 +277,13 @@ function renderGuideModal(state: StoredAppState): string {
           <article class="tg-guide-step">
             <p class="text-[11px] uppercase tracking-[0.3em] text-white/46">Current status</p>
             <p class="mt-3 text-sm leading-6 text-white/68">
-              ${shutdownEnabled
-                ? `Shutdown is currently active in your setup at ${escapeHtml(
-                    state.settings.hardShutdownTime,
-                  )}.`
-                : "Shutdown is currently off. You can leave it off until you actually want a nightly cutoff."}
+              ${
+                shutdownEnabled
+                  ? `Shutdown is currently active in your setup at ${escapeHtml(
+                      state.settings.hardShutdownTime,
+                    )}.`
+                  : "Shutdown is currently off. You can leave it off until you actually want a nightly cutoff."
+              }
             </p>
           </article>
         </div>
@@ -408,13 +443,6 @@ function renderIdle(
           Start session
         </button>
         <p class="mt-4 text-xs uppercase tracking-[0.26em] text-white/48">${DEV_MODE ? "DEV MODE active" : "One tap to begin"}</p>
-        <button
-          type="button"
-          data-guide="open"
-          class="tg-shell-link mt-4 w-full justify-center"
-        >
-          How it works
-        </button>
       </div>
 
       <div class="mt-6 min-h-[20px] text-xs uppercase tracking-[0.24em] text-amber-200/90" data-role="shutdown-warning">
@@ -461,7 +489,10 @@ function renderIdle(
   `;
 }
 
-function renderWorking(state: StoredAppState, totalFocusMinutes: number): string {
+function renderWorking(
+  state: StoredAppState,
+  totalFocusMinutes: number,
+): string {
   const activeSession = state.recoveryState.activeSession;
   if (!activeSession) {
     return "";
@@ -571,7 +602,9 @@ function render(): void {
   const mode = appState.recoveryState.mode;
   const onboardingComplete = isOnboardingComplete(appState);
   const lockEndsAt =
-    appState.recoveryState.activeBreak?.endsAt ?? appState.recoveryState.shutdown?.unlockAt ?? 0;
+    appState.recoveryState.activeBreak?.endsAt ??
+    appState.recoveryState.shutdown?.unlockAt ??
+    0;
   const isLocked = mode === "BREAK" || mode === "SHUTDOWN";
   const backgroundMode =
     mode === "WORKING" || mode === "PAUSED" || mode === "CHECK_IN"
@@ -665,8 +698,12 @@ function render(): void {
     </main>
   `;
 
-  const goalInput = document.getElementById("goal-input") as HTMLInputElement | null;
-  const onboardingForm = document.getElementById("onboarding-form") as HTMLFormElement | null;
+  const goalInput = document.getElementById(
+    "goal-input",
+  ) as HTMLInputElement | null;
+  const onboardingForm = document.getElementById(
+    "onboarding-form",
+  ) as HTMLFormElement | null;
   const startButton = document.getElementById("start-session-button");
   const endButton = document.getElementById("end-session-button");
   const pauseButton = document.getElementById("pause-session-button");
@@ -701,14 +738,18 @@ function render(): void {
       payload: {
         goal: String(formData.get("goal") ?? ""),
         workDurationMinutes: Number(formData.get("workDurationMinutes") ?? 45),
-        breakDurationMinutes: Number(formData.get("breakDurationMinutes") ?? 15),
+        breakDurationMinutes: Number(
+          formData.get("breakDurationMinutes") ?? 15,
+        ),
         soundEnabled: formData.get("soundEnabled") === "on",
         onboardingCompleted: true,
       },
     });
 
     if (!response.ok || !response.appState) {
-      onboardingError = response.ok ? "Could not save onboarding." : response.error;
+      onboardingError = response.ok
+        ? "Could not save onboarding."
+        : response.error;
       render();
       return;
     }
@@ -727,12 +768,18 @@ function render(): void {
 
   document.querySelectorAll("[data-checkin]").forEach((button) => {
     button.addEventListener("click", async () => {
-      const action = (button as HTMLElement).getAttribute("data-checkin") as CheckInAction | null;
+      const action = (button as HTMLElement).getAttribute(
+        "data-checkin",
+      ) as CheckInAction | null;
       if (action) {
         try {
           const response = await request({ type: "CHECK_IN_DECISION", action });
           if (response.ok && response.appState) {
-            log("check-in action", action, response.appState.recoveryState.mode);
+            log(
+              "check-in action",
+              action,
+              response.appState.recoveryState.mode,
+            );
             applyState(response.appState);
             if (response.appState.recoveryState.mode === "WORKING") {
               playSessionStartSound();
@@ -813,7 +860,12 @@ function applyState(nextState: StoredAppState): void {
   onboardingError = "";
 
   const activeElement = document.activeElement;
-  if (!(activeElement instanceof HTMLInputElement && activeElement.id === "goal-input")) {
+  if (
+    !(
+      activeElement instanceof HTMLInputElement &&
+      activeElement.id === "goal-input"
+    )
+  ) {
     goalDraft = nextState.settings.goal;
   }
 

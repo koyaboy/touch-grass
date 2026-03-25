@@ -13,6 +13,7 @@ const appRoot = app;
 
 let appState: StoredAppState | null = null;
 let liveTimerId: number | null = null;
+let saveStatusMessage = "";
 
 function escapeHtml(value: string): string {
   return value
@@ -74,6 +75,11 @@ function render(): void {
     appState.recoveryState.activeBreak?.endsAt ?? appState.recoveryState.shutdown?.unlockAt ?? 0;
   const isLocked = mode === "BREAK" || mode === "SHUTDOWN";
   const onboardingPending = !settings.onboardingCompleted;
+  const statusText =
+    saveStatusMessage ||
+    (onboardingPending
+      ? "Saving here will complete onboarding and unlock your first session."
+      : "Settings persist in chrome.storage.local.");
 
   appRoot.innerHTML = `
     <main class="settings-page">
@@ -196,7 +202,7 @@ function render(): void {
             </section>
 
             <div class="flex items-center justify-between gap-4">
-              <p id="save-status" class="text-sm text-white/52">${onboardingPending ? "Saving here will complete onboarding and unlock your first session." : "Settings persist in chrome.storage.local."}</p>
+              <p id="save-status" class="text-sm text-white/52">${statusText}</p>
               <button type="submit" class="settings-save">${onboardingPending ? "Save and finish setup" : "Save settings"}</button>
             </div>
           </form>
@@ -221,7 +227,6 @@ function render(): void {
   `;
 
   const form = document.getElementById("settings-form") as HTMLFormElement | null;
-  const saveStatus = document.getElementById("save-status");
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -239,13 +244,18 @@ function render(): void {
     };
 
     const response = await request({ type: "UPDATE_SETTINGS", payload });
-    if (saveStatus instanceof HTMLElement) {
-      saveStatus.textContent = response.ok
-        ? payload.onboardingCompleted && !settings.onboardingCompleted
-          ? "Saved. Onboarding complete."
-          : "Saved."
-        : response.error;
+    saveStatusMessage = response.ok
+      ? payload.onboardingCompleted && !settings.onboardingCompleted
+        ? "Saved. Onboarding complete."
+        : "Saved."
+      : response.error;
+
+    if (response.ok && response.appState) {
+      applyState(response.appState);
+      return;
     }
+
+    render();
   });
 
   startLiveTicker();
