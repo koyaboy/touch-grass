@@ -214,6 +214,10 @@ function isLockedMode(appState: StoredAppState): boolean {
   );
 }
 
+function isOnboardingComplete(appState: StoredAppState): boolean {
+  return appState.settings.onboardingCompleted;
+}
+
 function getNextCycleNumber(appState: StoredAppState): number {
   return getTodaySessionHistory(appState.sessionHistory).length + 1;
 }
@@ -459,6 +463,10 @@ async function startWorkingFromState(
 
 async function startWorkingSession(baseState?: StoredAppState): Promise<StoredAppState> {
   const appState = baseState ?? (await getStoredAppState());
+
+  if (!isOnboardingComplete(appState)) {
+    throw new Error("Finish onboarding in settings before starting your first session.");
+  }
 
   if (appState.recoveryState.mode === "SHUTDOWN") {
     throw new Error("Browser is shut down until your configured start time.");

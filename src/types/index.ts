@@ -16,6 +16,7 @@ export interface UserSettings {
   workStartTime: string;
   earlyUnlockPhrase: string;
   soundEnabled: boolean;
+  onboardingCompleted: boolean;
 }
 
 export interface SessionHistoryItem {

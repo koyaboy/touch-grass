@@ -36,9 +36,10 @@ export const DEFAULT_SETTINGS: UserSettings = {
   workDurationMinutes: DEV_MODE ? 1 : 45,
   breakDurationMinutes: DEV_MODE ? 1 : 15,
   hardShutdownTime: "",
-  workStartTime: "05:00",
+  workStartTime: "08:00",
   earlyUnlockPhrase: "I took a break",
   soundEnabled: true,
+  onboardingCompleted: false,
 };
 
 export function getEffectiveWorkDurationMs(settings: UserSettings): number {

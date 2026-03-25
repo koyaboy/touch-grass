@@ -63,7 +63,31 @@ function sanitizeBoolean(value: unknown, fallback: boolean): boolean {
   return value;
 }
 
-export function sanitizeSettings(raw: Partial<UserSettings> | undefined): UserSettings {
+function inferOnboardingCompleted(
+  raw: Partial<UserSettings> | undefined,
+  sessionHistory: unknown,
+): boolean {
+  if (typeof raw?.onboardingCompleted === "boolean") {
+    return raw.onboardingCompleted;
+  }
+
+  const hasHistory = Array.isArray(sessionHistory) && sessionHistory.length > 0;
+  const hasConfiguredGoal = typeof raw?.goal === "string" && raw.goal.trim().length > 0;
+  const hasCustomDurations =
+    Number(raw?.workDurationMinutes) > 0 &&
+    Number(raw?.breakDurationMinutes) > 0 &&
+    (Number(raw?.workDurationMinutes) !== DEFAULT_SETTINGS.workDurationMinutes ||
+      Number(raw?.breakDurationMinutes) !== DEFAULT_SETTINGS.breakDurationMinutes);
+  const hasShutdown =
+    typeof raw?.hardShutdownTime === "string" && raw.hardShutdownTime.trim().length > 0;
+
+  return hasHistory || hasConfiguredGoal || hasCustomDurations || hasShutdown;
+}
+
+export function sanitizeSettings(
+  raw: Partial<UserSettings> | undefined,
+  sessionHistory?: unknown,
+): UserSettings {
   const sanitizedGoal = sanitizeText(raw?.goal, DEFAULT_SETTINGS.goal);
 
   return {
@@ -86,6 +110,10 @@ export function sanitizeSettings(raw: Partial<UserSettings> | undefined): UserSe
       DEFAULT_SETTINGS.earlyUnlockPhrase,
     ),
     soundEnabled: sanitizeBoolean(raw?.soundEnabled, DEFAULT_SETTINGS.soundEnabled),
+    onboardingCompleted: sanitizeBoolean(
+      raw?.onboardingCompleted,
+      inferOnboardingCompleted(raw, sessionHistory),
+    ),
   };
 }
 
@@ -119,7 +147,7 @@ export function normalizeAppState(raw: unknown): StoredAppState {
   const recoveryState = candidate.recoveryState ?? createDefaultRecoveryState();
 
   return {
-    settings: sanitizeSettings(candidate.settings),
+    settings: sanitizeSettings(candidate.settings, candidate.sessionHistory),
     recoveryState: {
       mode:
         recoveryState.mode === "WORKING" ||

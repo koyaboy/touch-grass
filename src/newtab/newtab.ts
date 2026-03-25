@@ -37,6 +37,8 @@ let liveTimerId: number | null = null;
 let goalDraft = "";
 let lastMode = "IDLE";
 let lastSessionStartSound = "";
+let guideOpen = false;
+let onboardingError = "";
 
 function log(...args: unknown[]): void {
   if (DEV_MODE) {
@@ -51,6 +53,10 @@ function escapeHtml(value: string): string {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function isOnboardingComplete(state: StoredAppState): boolean {
+  return state.settings.onboardingCompleted;
 }
 
 function pickRandomSessionStartSound(): string {
@@ -128,7 +134,7 @@ function request(message: object): Promise<RuntimeResponseMessage> {
 }
 
 function getShutdownWarning(state: StoredAppState): string | null {
-  if (state.recoveryState.mode === "SHUTDOWN") {
+  if (state.recoveryState.mode === "SHUTDOWN" || !state.settings.hardShutdownTime) {
     return null;
   }
 
@@ -183,6 +189,159 @@ function startLiveTicker(): void {
   renderLiveValues();
 }
 
+function renderGuideModal(state: StoredAppState): string {
+  const shutdownEnabled = Boolean(state.settings.hardShutdownTime);
+
+  return `
+    <div class="tg-guide-modal">
+      <section class="tg-guide-panel">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="tg-muted text-xs uppercase tracking-[0.34em]">How it works</p>
+            <h2 class="tg-heading mt-3 text-4xl text-white md:text-5xl">The lock is the feature.</h2>
+          </div>
+          <button
+            type="button"
+            data-guide="close"
+            class="tg-shell-link tg-shell-link--ghost"
+            aria-label="Close guide"
+          >
+            Close
+          </button>
+        </div>
+
+        <div class="tg-guide-grid mt-8">
+          <article class="tg-guide-step">
+            <p class="text-[11px] uppercase tracking-[0.3em] text-white/46">1</p>
+            <h3 class="mt-3 text-2xl text-white">Work with intent</h3>
+            <p class="mt-3 text-sm leading-6 text-white/68">
+              Start a session and work until the timer ends. Your current goal is what the session is measured against.
+            </p>
+          </article>
+          <article class="tg-guide-step">
+            <p class="text-[11px] uppercase tracking-[0.3em] text-white/46">2</p>
+            <h3 class="mt-3 text-2xl text-white">Break means break</h3>
+            <p class="mt-3 text-sm leading-6 text-white/68">
+              When work ends, the extension locks you into a real break. You do not keep browsing through it.
+            </p>
+          </article>
+          <article class="tg-guide-step">
+            <p class="text-[11px] uppercase tracking-[0.3em] text-white/46">3</p>
+            <h3 class="mt-3 text-2xl text-white">Decide what happens next</h3>
+            <p class="mt-3 text-sm leading-6 text-white/68">
+              After the break, you either continue the same goal, switch goals, or stop.
+            </p>
+          </article>
+        </div>
+
+        <div class="tg-guide-grid mt-5">
+          <article class="tg-guide-step">
+            <p class="text-[11px] uppercase tracking-[0.3em] text-white/46">Shutdown time</p>
+            <p class="mt-3 text-sm leading-6 text-white/68">
+              This is an optional daily cutoff. After that time, new sessions are blocked until your next start time.
+            </p>
+          </article>
+          <article class="tg-guide-step">
+            <p class="text-[11px] uppercase tracking-[0.3em] text-white/46">Current status</p>
+            <p class="mt-3 text-sm leading-6 text-white/68">
+              ${shutdownEnabled
+                ? `Shutdown is currently active in your setup at ${escapeHtml(
+                    state.settings.hardShutdownTime,
+                  )}.`
+                : "Shutdown is currently off. You can leave it off until you actually want a nightly cutoff."}
+            </p>
+          </article>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderOnboarding(state: StoredAppState): string {
+  const settings = state.settings;
+
+  return `
+    <section class="mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center py-10 md:py-14">
+      <div class="max-w-3xl">
+        <p class="tg-muted text-sm uppercase tracking-[0.34em]">First run</p>
+        <h1 class="tg-heading mt-4 text-5xl leading-[0.92] text-white md:text-8xl">Set the rhythm before you start.</h1>
+        <p class="mt-5 max-w-2xl text-base leading-7 text-white/72 md:text-lg">
+          Touch Grass enforces work, breaks, and optional shutdown. Start by configuring the core session loop. You can add stricter boundaries later.
+        </p>
+      </div>
+
+      <div class="tg-setup-grid mt-8">
+        <form id="onboarding-form" class="tg-glass rounded-[34px] p-6 md:p-8">
+          <p class="text-[11px] uppercase tracking-[0.3em] text-white/46">Essentials</p>
+          <div class="mt-6 grid gap-4 md:grid-cols-2">
+            <label class="tg-setup-field">
+              <span>Work duration (minutes)</span>
+              <input name="workDurationMinutes" type="number" min="1" value="${settings.workDurationMinutes}" />
+              <small>How long you focus before the extension forces a break.</small>
+            </label>
+            <label class="tg-setup-field">
+              <span>Break duration (minutes)</span>
+              <input name="breakDurationMinutes" type="number" min="1" value="${settings.breakDurationMinutes}" />
+              <small>How long the break lock lasts before check-in.</small>
+            </label>
+          </div>
+
+          <label class="tg-setup-field mt-4">
+            <span>Starting goal</span>
+            <input
+              name="goal"
+              type="text"
+              value="${escapeHtml(goalDraft)}"
+              placeholder="Optional for now"
+            />
+            <small>This shows up on the dashboard and during check-in. You can change it anytime.</small>
+          </label>
+
+          <label class="tg-setup-toggle mt-4">
+            <input name="soundEnabled" type="checkbox" ${settings.soundEnabled ? "checked" : ""} />
+            <span>Enable sounds for session starts, breaks, and break ambience</span>
+          </label>
+
+          <div class="mt-6 rounded-[24px] border border-white/10 bg-black/18 p-4 text-sm leading-6 text-white/68">
+            Shutdown time is optional and starts off disabled. You can add a nightly cutoff later in Settings once the basic loop feels right.
+          </div>
+
+          <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p class="text-sm text-amber-100/82">${escapeHtml(onboardingError || "Save these essentials to unlock your first session.")}</p>
+            <button type="submit" class="tg-action-button sm:w-auto sm:min-w-[240px]">Finish setup</button>
+          </div>
+        </form>
+
+        <aside class="tg-glass rounded-[34px] p-6 md:p-8">
+          <p class="text-[11px] uppercase tracking-[0.3em] text-white/46">What to expect</p>
+          <div class="mt-5 space-y-4">
+            <article class="tg-guide-step">
+              <h3 class="text-2xl text-white">Start focused</h3>
+              <p class="mt-2 text-sm leading-6 text-white/68">One goal, one timer, one clear end point.</p>
+            </article>
+            <article class="tg-guide-step">
+              <h3 class="text-2xl text-white">Take the break</h3>
+              <p class="mt-2 text-sm leading-6 text-white/68">When time is up, the extension locks you out long enough to actually step away.</p>
+            </article>
+            <article class="tg-guide-step">
+              <h3 class="text-2xl text-white">Check back in</h3>
+              <p class="mt-2 text-sm leading-6 text-white/68">After the break, decide whether to continue, switch goals, or stop.</p>
+            </article>
+          </div>
+
+          <button
+            type="button"
+            data-guide="open"
+            class="tg-shell-link mt-6 w-full justify-center"
+          >
+            Read the full guide
+          </button>
+        </aside>
+      </div>
+    </section>
+  `;
+}
+
 function renderCheckIn(state: StoredAppState): string {
   const checkIn = state.recoveryState.checkIn;
   if (!checkIn) {
@@ -219,7 +378,11 @@ function renderCheckIn(state: StoredAppState): string {
   `;
 }
 
-function renderIdle(state: StoredAppState, todaySessions: ReturnType<typeof getTodaySessionHistory>, totalFocusMinutes: number): string {
+function renderIdle(
+  state: StoredAppState,
+  todaySessions: ReturnType<typeof getTodaySessionHistory>,
+  totalFocusMinutes: number,
+): string {
   const shutdownWarning = getShutdownWarning(state);
 
   return `
@@ -245,6 +408,13 @@ function renderIdle(state: StoredAppState, todaySessions: ReturnType<typeof getT
           Start session
         </button>
         <p class="mt-4 text-xs uppercase tracking-[0.26em] text-white/48">${DEV_MODE ? "DEV MODE active" : "One tap to begin"}</p>
+        <button
+          type="button"
+          data-guide="open"
+          class="tg-shell-link mt-4 w-full justify-center"
+        >
+          How it works
+        </button>
       </div>
 
       <div class="mt-6 min-h-[20px] text-xs uppercase tracking-[0.24em] text-amber-200/90" data-role="shutdown-warning">
@@ -296,8 +466,6 @@ function renderWorking(state: StoredAppState, totalFocusMinutes: number): string
   if (!activeSession) {
     return "";
   }
-
-  const shutdownWarning = getShutdownWarning(state);
 
   return `
     <section class="mx-auto flex w-full max-w-6xl flex-1 flex-col justify-between py-12 md:py-16">
@@ -401,21 +569,29 @@ function render(): void {
     0,
   );
   const mode = appState.recoveryState.mode;
+  const onboardingComplete = isOnboardingComplete(appState);
   const lockEndsAt =
     appState.recoveryState.activeBreak?.endsAt ?? appState.recoveryState.shutdown?.unlockAt ?? 0;
   const isLocked = mode === "BREAK" || mode === "SHUTDOWN";
-  const backgroundMode = mode === "WORKING" || mode === "PAUSED" || mode === "CHECK_IN" ? "WORKING" : mode === "SHUTDOWN" ? "SHUTDOWN" : "IDLE";
+  const backgroundMode =
+    mode === "WORKING" || mode === "PAUSED" || mode === "CHECK_IN"
+      ? "WORKING"
+      : mode === "SHUTDOWN"
+        ? "SHUTDOWN"
+        : "IDLE";
 
   const screenContent =
-    mode === "WORKING"
-      ? renderWorking(appState, totalFocusMinutes)
-      : mode === "PAUSED"
-        ? renderPaused(appState)
-        : mode === "CHECK_IN"
-          ? renderCheckIn(appState)
-          : mode === "SHUTDOWN"
-            ? renderShutdown(appState)
-            : renderIdle(appState, todaySessions, totalFocusMinutes);
+    !onboardingComplete && mode === "IDLE"
+      ? renderOnboarding(appState)
+      : mode === "WORKING"
+        ? renderWorking(appState, totalFocusMinutes)
+        : mode === "PAUSED"
+          ? renderPaused(appState)
+          : mode === "CHECK_IN"
+            ? renderCheckIn(appState)
+            : mode === "SHUTDOWN"
+              ? renderShutdown(appState)
+              : renderIdle(appState, todaySessions, totalFocusMinutes);
 
   appRoot.innerHTML = `
     <main class="tg-shell">
@@ -423,17 +599,27 @@ function render(): void {
         <div class="tg-surface flex min-h-screen flex-col p-5 md:p-8">
           <header class="flex items-center justify-between">
             <p class="tg-brand text-[11px] font-medium text-white/72">Touch Grass</p>
-            <a
-              href="/settings/index.html"
-              class="rounded-full border border-white/18 bg-white/6 px-4 py-2 text-xs font-medium uppercase tracking-[0.24em] text-white/78 transition hover:bg-white/12"
-              aria-label="Open settings"
-            >
-              Settings
-            </a>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                data-guide="open"
+                class="tg-shell-link tg-shell-link--ghost"
+              >
+                Guide
+              </button>
+              <a
+                href="/settings/index.html"
+                class="tg-shell-link"
+                aria-label="Open settings"
+              >
+                ${onboardingComplete ? "Settings" : "Setup"}
+              </a>
+            </div>
           </header>
           ${screenContent}
         </div>
       </section>
+      ${guideOpen ? renderGuideModal(appState) : ""}
 
       ${
         isLocked
@@ -480,6 +666,7 @@ function render(): void {
   `;
 
   const goalInput = document.getElementById("goal-input") as HTMLInputElement | null;
+  const onboardingForm = document.getElementById("onboarding-form") as HTMLFormElement | null;
   const startButton = document.getElementById("start-session-button");
   const endButton = document.getElementById("end-session-button");
   const pauseButton = document.getElementById("pause-session-button");
@@ -502,6 +689,40 @@ function render(): void {
       event.preventDefault();
       goalInput.blur();
     }
+  });
+
+  onboardingForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    onboardingError = "";
+
+    const formData = new FormData(onboardingForm);
+    const response = await request({
+      type: "UPDATE_SETTINGS",
+      payload: {
+        goal: String(formData.get("goal") ?? ""),
+        workDurationMinutes: Number(formData.get("workDurationMinutes") ?? 45),
+        breakDurationMinutes: Number(formData.get("breakDurationMinutes") ?? 15),
+        soundEnabled: formData.get("soundEnabled") === "on",
+        onboardingCompleted: true,
+      },
+    });
+
+    if (!response.ok || !response.appState) {
+      onboardingError = response.ok ? "Could not save onboarding." : response.error;
+      render();
+      return;
+    }
+
+    goalDraft = response.appState.settings.goal;
+    applyState(response.appState);
+  });
+
+  document.querySelectorAll("[data-guide]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const action = (button as HTMLElement).getAttribute("data-guide");
+      guideOpen = action === "open";
+      render();
+    });
   });
 
   document.querySelectorAll("[data-checkin]").forEach((button) => {
@@ -589,6 +810,7 @@ function applyState(nextState: StoredAppState): void {
   const previousMode = lastMode;
   appState = nextState;
   lastMode = nextState.recoveryState.mode;
+  onboardingError = "";
 
   const activeElement = document.activeElement;
   if (!(activeElement instanceof HTMLInputElement && activeElement.id === "goal-input")) {
