@@ -1,6 +1,6 @@
 import type { UserSettings } from "./types";
 
-export const DEV_MODE = true;
+export const DEV_MODE = false;
 
 export const STORAGE_KEY = "touch-grass-state";
 

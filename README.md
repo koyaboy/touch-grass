@@ -1,6 +1,6 @@
 # Touch Grass
 
-Touch Grass is a Chrome extension scaffold for enforced recovery, not optional productivity. It replaces the new tab page with a session dashboard, uses `chrome.alarms` to drive a strict work/break state machine, and injects a fullscreen overlay across tabs during breaks and shutdown windows so the lock, not the timer, is the core behavior.
+Touch Grass is an open source Chrome extension for enforced recovery during deep work sessions. It replaces the new tab page with a session dashboard, uses `chrome.alarms` to drive a strict work/break state machine, and injects a fullscreen overlay across tabs during breaks and shutdown windows so the lock, not the timer, is the core behavior.
 
 ## Tech stack
 
@@ -9,7 +9,7 @@ Touch Grass is a Chrome extension scaffold for enforced recovery, not optional p
 - Chrome Extension Manifest V3
 - Tailwind CSS bundled locally through Vite
 - HTML/CSS for the new tab page, settings page, and overlay UI
-- Chrome APIs: `chrome.alarms`, `chrome.storage.local`, `chrome.tabs`, `chrome.scripting`, `chrome.action`
+- Chrome APIs: `chrome.alarms`, `chrome.offscreen`, `chrome.storage.local`, `chrome.tabs`, `chrome.scripting`, `chrome.action`
 
 ## Project structure
 
@@ -29,17 +29,20 @@ Touch Grass is a Chrome extension scaffold for enforced recovery, not optional p
 │   │   └── service-worker.ts        # State machine, alarms, tab injection, runtime message hub
 │   ├── newtab/
 │   │   ├── index.html               # Chrome new tab override entry HTML
-│   │   ├── newtab.ts                # Dashboard rendering, session controls, local lock UI
+│   │   ├── newtab.ts                # Dashboard rendering, onboarding, session controls, local lock UI
 │   │   └── newtab.css               # Dashboard styling and Tailwind import
+│   ├── offscreen/
+│   │   ├── index.html               # Offscreen document entry for audio and badge updates
+│   │   └── offscreen.ts             # Managed audio playback and badge countdown sync
 │   ├── overlay/
 │   │   ├── overlay.ts               # Injected blocker UI for break/shutdown across tabs
 │   │   └── overlay.css              # Chaotic and calm overlay styles
 │   ├── settings/
 │   │   ├── index.html               # Extension settings page entry HTML
-│   │   ├── settings.ts              # Settings form logic and local lock UI
+│   │   ├── settings.ts              # Settings form logic, onboarding completion, and local lock UI
 │   │   └── settings.css             # Settings page styling and Tailwind import
 │   ├── types/
-│   │   └── index.ts                 # Shared app state, overlay payload, and message types
+│   │   └── index.ts                 # Shared app state, overlay payload, and runtime message types
 │   ├── utils/
 │   │   ├── storage.ts               # Typed chrome.storage.local wrappers and state normalization
 │   │   └── time.ts                  # Shared time parsing and formatting helpers
@@ -72,7 +75,8 @@ npm run build
 ## How Chrome extensions work
 
 - `manifest.json` is the extension’s contract with Chrome. It declares permissions, entry points, the new tab override, and the background service worker.
-- The background service worker is the extension’s coordinator. In this project it owns the recovery state machine, schedules `chrome.alarms`, persists state, and injects/removes overlays.
+- The background service worker is the extension’s coordinator. In this project it owns the recovery state machine, schedules `chrome.alarms`, persists state, manages the offscreen document, and injects/removes overlays.
+- The offscreen document handles extension-controlled audio playback and badge countdown updates without depending on an open extension page.
 - Content scripts are scripts that run inside normal web pages. Here, `overlay.ts` is injected with `chrome.scripting.executeScript()` only when the app enters `BREAK` or `SHUTDOWN`.
 - A new tab override tells Chrome to open your extension page instead of the default new tab. That is configured under `chrome_url_overrides.newtab`.
 - Extension pages, the service worker, and injected scripts communicate with `chrome.runtime.sendMessage()` and `chrome.tabs.sendMessage()`.
@@ -109,13 +113,13 @@ npm run dev
 ### DEV_MODE
 
 - Open `src/config.ts`.
-- Change `DEV_MODE` from `false` to `true`.
+- Set `DEV_MODE` to `true` when you want the fast development timings.
 - Rebuild with `npm run build` or let `npm run dev` rebuild automatically.
 - Reload the unpacked extension in Chrome.
 
 When `DEV_MODE` is `true`:
 
-- Work duration becomes 1 minute
+- Work duration becomes 10 seconds
 - Break duration becomes 10 seconds
 - State transitions log to the service worker console
 - Break overlays show a visible `DEV BYPASS — skip break` button
@@ -145,25 +149,33 @@ When `DEV_MODE` is `true`:
 
 ## How to add sounds
 
-Drop your audio files into `public/sounds/` and keep these filenames:
+Drop your audio files into `public/sounds/` and keep the filenames referenced in `src/config.ts`:
 
-- `public/sounds/session-start.mp3`
+- `public/sounds/session-start-1.mp3`
+- `public/sounds/session-start-2.mp3`
+- `public/sounds/let-him-cook.mp3`
 - `public/sounds/break-start.mp3`
+- `public/sounds/lofi-beats/chill-lofi-hip-hop.mp3`
+- `public/sounds/fah.mp3`
+- `public/sounds/sus-meme-sound.mp3`
 - `public/sounds/shutdown.mp3`
 
-The code references them through `chrome.runtime.getURL()` using constants in `src/config.ts`. Placeholder files can be missing or invalid while scaffolding; playback fails silently so local development is not blocked.
+The code resolves these through `chrome.runtime.getURL()` and the offscreen document plays them on demand. Missing or invalid files fail quietly enough that local UI work is still possible, but audio-related behavior should be tested with real assets present.
 
 ## State machine
 
 The extension models recovery explicitly:
 
 ```text
-IDLE -> WORKING -> BREAK -> WORKING -> ... -> SHUTDOWN -> IDLE
+IDLE -> WORKING -> BREAK -> CHECK_IN -> WORKING -> ... -> SHUTDOWN -> IDLE
+             \-> PAUSED -> WORKING
 ```
 
 - `IDLE`: no active work session
 - `WORKING`: a work interval is in progress
+- `PAUSED`: a work interval is paused locally and can be resumed
 - `BREAK`: the break overlay is active across tabs
+- `CHECK_IN`: the break ended and the user must decide whether to resume or stop
 - `SHUTDOWN`: the browser is locked until the next configured work start time
 
 All state is stored in `chrome.storage.local` under a single typed key so it survives browser restarts.
@@ -187,6 +199,12 @@ All state is stored in `chrome.storage.local` under a single typed key so it sur
 4. Create a developer account in the Chrome Web Store Developer Dashboard.
 5. Upload the zip, complete the listing fields, and submit for review.
 6. Expect extra review attention because the extension modifies the new tab page and injects fullscreen overlays.
+
+## Contributing
+
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md)
+before submitting a pull request and note that this project follows a
+[Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Notes
 
