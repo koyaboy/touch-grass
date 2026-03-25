@@ -1,5 +1,9 @@
 # Touch Grass
 
+<p align="center">
+  <img src="public/screenshot.png" alt="Touch Grass app screenshot" width="1200" />
+</p>
+
 Touch Grass is an open source Chrome extension for enforced recovery during deep work sessions. It replaces the new tab page with a session dashboard, uses `chrome.alarms` to drive a strict work/break state machine, and injects a fullscreen overlay across tabs during breaks and shutdown windows so the lock, not the timer, is the core behavior.
 
 ## Tech stack
