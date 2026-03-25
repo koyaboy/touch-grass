@@ -1,5 +1,6 @@
 import {
   ALARM_NAMES,
+  BREAK_AMBIENT_VOLUME,
   DEV_MODE,
   OVERLAY_ASSETS,
   SOUND_FILES,
@@ -29,6 +30,7 @@ import { formatClockTime, getActiveTimeWindow, getNextOccurrence } from "../util
 const NON_SCRIPTABLE_PROTOCOLS = ["chrome://", "chrome-extension://", "edge://", "about:"];
 const NEW_TAB_PROTOCOLS = ["chrome://newtab/", "edge://newtab/"];
 const OFFSCREEN_DOCUMENT_PATH = "offscreen/index.html";
+const BREAK_AMBIENT_CHANNEL = "break-ambient";
 
 let offscreenDocumentPromise: Promise<void> | null = null;
 const lastPlayedSoundByChannel = new Map<string, string>();
@@ -97,6 +99,70 @@ async function playManagedSound(path: string, maxDurationMs?: number): Promise<v
   }
 }
 
+async function startManagedLoop(
+  channel: string,
+  path: string,
+  volume = BREAK_AMBIENT_VOLUME,
+): Promise<void> {
+  if (!path) {
+    return;
+  }
+
+  try {
+    await ensureOffscreenDocument();
+    const message: OffscreenRuntimeMessage = {
+      target: "offscreen",
+      type: "START_LOOP",
+      channel,
+      path,
+      volume,
+    };
+    await chrome.runtime.sendMessage(message);
+  } catch (error) {
+    log("managed loop skipped", channel, path, error);
+  }
+}
+
+async function playManagedSoundThenStartLoop(
+  path: string,
+  channel: string,
+  loopPath: string,
+  loopVolume = BREAK_AMBIENT_VOLUME,
+): Promise<void> {
+  if (!path || !loopPath) {
+    return;
+  }
+
+  try {
+    await ensureOffscreenDocument();
+    const message: OffscreenRuntimeMessage = {
+      target: "offscreen",
+      type: "PLAY_SOUND_THEN_START_LOOP",
+      path,
+      channel,
+      loopPath,
+      loopVolume,
+    };
+    await chrome.runtime.sendMessage(message);
+  } catch (error) {
+    log("managed sound then loop skipped", path, loopPath, error);
+  }
+}
+
+async function stopManagedChannel(channel: string): Promise<void> {
+  try {
+    await ensureOffscreenDocument();
+    const message: OffscreenRuntimeMessage = {
+      target: "offscreen",
+      type: "STOP_CHANNEL",
+      channel,
+    };
+    await chrome.runtime.sendMessage(message);
+  } catch (error) {
+    log("managed channel stop skipped", channel, error);
+  }
+}
+
 function pickRandomSound(channel: string, soundOptions: readonly string[]): string {
   if (soundOptions.length === 0) {
     return "";
@@ -114,6 +180,22 @@ function pickRandomSound(channel: string, soundOptions: readonly string[]): stri
   const nextSound = candidatePool[Math.floor(Math.random() * candidatePool.length)];
   lastPlayedSoundByChannel.set(channel, nextSound);
   return nextSound;
+}
+
+async function syncBreakAmbient(appState: StoredAppState): Promise<void> {
+  if (
+    appState.settings.soundEnabled &&
+    appState.recoveryState.mode === "BREAK" &&
+    appState.recoveryState.activeBreak
+  ) {
+    await startManagedLoop(
+      BREAK_AMBIENT_CHANNEL,
+      pickRandomSound("break-ambient", SOUND_FILES.breakAmbient),
+    );
+    return;
+  }
+
+  await stopManagedChannel(BREAK_AMBIENT_CHANNEL);
 }
 
 function isTabScriptable(tab: chrome.tabs.Tab): boolean {
@@ -511,7 +593,17 @@ async function moveWorkingToBreak(): Promise<StoredAppState> {
     await scheduleAlarm(ALARM_NAMES.BREAK_END, nextState.recoveryState.activeBreak.endsAt);
   }
   await writeAppState(nextState);
-  await playManagedSound(pickRandomSound("break", SOUND_FILES.breakStart));
+  if (nextState.settings.soundEnabled) {
+    const breakStartSound = pickRandomSound("break", SOUND_FILES.breakStart);
+    const ambientSound = pickRandomSound("break-ambient", SOUND_FILES.breakAmbient);
+    await playManagedSoundThenStartLoop(
+      breakStartSound,
+      BREAK_AMBIENT_CHANNEL,
+      ambientSound,
+    );
+  } else {
+    await syncBreakAmbient(nextState);
+  }
   log("state transition", "WORKING", "->", "BREAK");
   return nextState;
 }
@@ -544,6 +636,10 @@ async function moveBreakToCheckIn(): Promise<StoredAppState> {
 
   await clearWorkAndBreakAlarms();
   await writeAppState(nextState);
+  await syncBreakAmbient(nextState);
+  if (nextState.settings.soundEnabled) {
+    await playManagedSound(pickRandomSound("break-end", SOUND_FILES.breakEnd));
+  }
   await redirectActiveTabToCheckIn();
   log("state transition", "BREAK", "->", "CHECK_IN");
   return nextState;
@@ -601,7 +697,10 @@ async function enterShutdown(
   await scheduleAlarm(ALARM_NAMES.DAILY_UNLOCK, unlockAt);
   await scheduleDailyAlarms(appState.settings);
   await writeAppState(nextState);
-  await playManagedSound(pickRandomSound("shutdown", SOUND_FILES.shutdown));
+  await syncBreakAmbient(nextState);
+  if (nextState.settings.soundEnabled) {
+    await playManagedSound(pickRandomSound("shutdown", SOUND_FILES.shutdown));
+  }
   return nextState;
 }
 
@@ -635,6 +734,7 @@ async function applySettings(payload: Partial<UserSettings>): Promise<StoredAppS
 
   await scheduleDailyAlarms(mergedSettings);
   await writeAppState(nextState);
+  await syncBreakAmbient(nextState);
   return nextState;
 }
 
@@ -689,6 +789,7 @@ async function hydrateFromStorage(): Promise<void> {
 
   await scheduleDailyAlarms(appState.settings);
   await syncOverlayEverywhere(appState);
+  await syncBreakAmbient(appState);
 }
 
 async function handleAlarm(alarm: chrome.alarms.Alarm): Promise<void> {

@@ -18,8 +18,11 @@ Touch Grass is a Chrome extension scaffold for enforced recovery, not optional p
 ├── public/
 │   ├── manifest.json                # MV3 manifest copied directly into dist/
 │   └── sounds/
-│       ├── session-start.mp3        # Placeholder local sound asset for session start
+│       ├── session-start-1.mp3      # Session start sound variant
+│       ├── session-start-2.mp3      # Session start sound variant
 │       ├── break-start.mp3          # Placeholder local sound asset for break start
+│       ├── fah.mp3                  # Break complete sound variant
+│       ├── sus-meme-sound.mp3       # Break complete sound variant
 │       └── shutdown.mp3             # Placeholder local sound asset for shutdown
 ├── src/
 │   ├── background/

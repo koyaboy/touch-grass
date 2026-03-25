@@ -15,6 +15,7 @@ export interface UserSettings {
   hardShutdownTime: string;
   workStartTime: string;
   earlyUnlockPhrase: string;
+  soundEnabled: boolean;
 }
 
 export interface SessionHistoryItem {
@@ -113,9 +114,36 @@ export interface OverlaySyncMessage {
   payload: OverlayPayload | null;
 }
 
-export type OffscreenRuntimeMessage = {
-  target: "offscreen";
-  type: "PLAY_SOUND";
-  path: string;
-  maxDurationMs?: number;
-};
+export type OffscreenRuntimeMessage =
+  | {
+      target: "offscreen";
+      type: "PLAY_SOUND";
+      path: string;
+      maxDurationMs?: number;
+      volume?: number;
+    }
+  | {
+      target: "offscreen";
+      type: "START_LOOP";
+      channel: string;
+      path: string;
+      volume?: number;
+    }
+  | {
+      target: "offscreen";
+      type: "PLAY_SOUND_THEN_START_LOOP";
+      path: string;
+      channel: string;
+      loopPath: string;
+      volume?: number;
+      loopVolume?: number;
+    }
+  | {
+      target: "offscreen";
+      type: "STOP_CHANNEL";
+      channel: string;
+    }
+  | {
+      target: "offscreen";
+      type: "STOP_ALL";
+    };

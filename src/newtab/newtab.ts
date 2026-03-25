@@ -73,6 +73,10 @@ function pickRandomSessionStartSound(): string {
 }
 
 function playSessionStartSound(): void {
+  if (!appState?.settings.soundEnabled) {
+    return;
+  }
+
   const soundPath = pickRandomSessionStartSound();
 
   if (!soundPath) {

@@ -107,6 +107,10 @@ function render(): void {
                 <span>Goal shown on dashboard</span>
                 <input name="goal" type="text" value="${escapeHtml(settings.goal)}" />
               </label>
+              <label class="settings-toggle">
+                <input name="soundEnabled" type="checkbox" ${settings.soundEnabled ? "checked" : ""} />
+                <span>Sound enabled</span>
+              </label>
             </section>
 
             <section class="settings-card">
@@ -163,6 +167,7 @@ function render(): void {
       breakDurationMinutes: Number(formData.get("breakDurationMinutes") ?? 10),
       hardShutdownTime: String(formData.get("hardShutdownTime") ?? "22:00"),
       workStartTime: String(formData.get("workStartTime") ?? "08:00"),
+      soundEnabled: formData.get("soundEnabled") === "on",
     };
 
     const response = await request({ type: "UPDATE_SETTINGS", payload });

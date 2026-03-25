@@ -55,6 +55,14 @@ function sanitizeText(value: unknown, fallback: string): string {
   return trimmed.length > 0 ? trimmed : fallback;
 }
 
+function sanitizeBoolean(value: unknown, fallback: boolean): boolean {
+  if (typeof value !== "boolean") {
+    return fallback;
+  }
+
+  return value;
+}
+
 export function sanitizeSettings(raw: Partial<UserSettings> | undefined): UserSettings {
   const sanitizedGoal = sanitizeText(raw?.goal, DEFAULT_SETTINGS.goal);
 
@@ -77,6 +85,7 @@ export function sanitizeSettings(raw: Partial<UserSettings> | undefined): UserSe
       raw?.earlyUnlockPhrase,
       DEFAULT_SETTINGS.earlyUnlockPhrase,
     ),
+    soundEnabled: sanitizeBoolean(raw?.soundEnabled, DEFAULT_SETTINGS.soundEnabled),
   };
 }
 
