@@ -1,10 +1,10 @@
 import { SOUND_VOLUME } from "../config";
-import type { OffscreenRuntimeMessage } from "../types";
+import type { ExtensionMode, OffscreenRuntimeMessage } from "../types";
 
 const activeAudio = new Set<HTMLAudioElement>();
 const loopAudioByChannel = new Map<string, HTMLAudioElement>();
 let badgeTickerId: number | null = null;
-let badgeMode: OffscreenRuntimeMessage["mode"] | null = null;
+let badgeMode: ExtensionMode | null = null;
 let badgeEndsAt: number | null = null;
 
 function cleanupAudio(audio: HTMLAudioElement): void {
@@ -171,8 +171,12 @@ function getBadgeColor(): string {
 
 async function renderBadge(): Promise<void> {
   const text = getBadgeText();
-  await chrome.action.setBadgeBackgroundColor({ color: getBadgeColor() });
-  await chrome.action.setBadgeText({ text });
+  await chrome.runtime.sendMessage({
+    target: "service-worker",
+    type: "BADGE_TICK",
+    text,
+    color: getBadgeColor(),
+  });
 }
 
 function stopBadgeTicker(): void {
@@ -182,7 +186,7 @@ function stopBadgeTicker(): void {
   }
 }
 
-function syncBadge(mode: OffscreenRuntimeMessage["mode"], endsAt?: number): void {
+function syncBadge(mode: ExtensionMode, endsAt?: number): void {
   badgeMode = mode;
   badgeEndsAt = typeof endsAt === "number" ? endsAt : null;
 

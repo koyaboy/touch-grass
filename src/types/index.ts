@@ -104,7 +104,13 @@ export type RuntimeRequestMessage =
   | { type: "CHECK_IN_DECISION"; action: CheckInAction }
   | { type: "DISMISS_OVERLAY_DEV" }
   | { type: "UNLOCK_BREAK_EARLY"; phrase: string }
-  | { type: "UPDATE_SETTINGS"; payload: Partial<UserSettings> };
+  | { type: "UPDATE_SETTINGS"; payload: Partial<UserSettings> }
+  | {
+      target: "service-worker";
+      type: "BADGE_TICK";
+      text: string;
+      color: string;
+    };
 
 export type RuntimeResponseMessage =
   | { ok: true; appState?: StoredAppState; overlay?: OverlayPayload | null }

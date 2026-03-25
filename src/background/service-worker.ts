@@ -898,6 +898,13 @@ chrome.runtime.onMessage.addListener(
   ) => {
     void (async () => {
       try {
+        if (message.type === "BADGE_TICK" && message.target === "service-worker") {
+          await chrome.action.setBadgeBackgroundColor({ color: message.color });
+          await chrome.action.setBadgeText({ text: message.text });
+          sendResponse({ ok: true });
+          return;
+        }
+
         switch (message.type) {
           case "GET_APP_STATE":
             sendResponse({ ok: true, appState: await getStoredAppState() });
