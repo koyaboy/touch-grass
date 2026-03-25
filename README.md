@@ -6,6 +6,10 @@
 
 Touch Grass is an open source Chrome extension for enforced recovery during deep work sessions. It replaces the new tab page with a session dashboard, uses `chrome.alarms` to drive a strict work/break state machine, and injects a fullscreen overlay across tabs during breaks and shutdown windows so the lock, not the timer, is the core behavior.
 
+## Install
+
+Chrome Web Store: Not available yet.
+
 ## Tech stack
 
 - TypeScript with strict mode
@@ -75,15 +79,6 @@ npm run build
 ```
 
 5. Confirm a `dist/` folder was created. That folder is what Chrome loads.
-
-## How Chrome extensions work
-
-- `manifest.json` is the extension’s contract with Chrome. It declares permissions, entry points, the new tab override, and the background service worker.
-- The background service worker is the extension’s coordinator. In this project it owns the recovery state machine, schedules `chrome.alarms`, persists state, manages the offscreen document, and injects/removes overlays.
-- The offscreen document handles extension-controlled audio playback and badge countdown updates without depending on an open extension page.
-- Content scripts are scripts that run inside normal web pages. Here, `overlay.ts` is injected with `chrome.scripting.executeScript()` only when the app enters `BREAK` or `SHUTDOWN`.
-- A new tab override tells Chrome to open your extension page instead of the default new tab. That is configured under `chrome_url_overrides.newtab`.
-- Extension pages, the service worker, and injected scripts communicate with `chrome.runtime.sendMessage()` and `chrome.tabs.sendMessage()`.
 
 ## How to load the extension in Chrome for the first time
 
@@ -194,15 +189,6 @@ All state is stored in `chrome.storage.local` under a single typed key so it sur
 6. Content scripts run in an isolated world, not directly in the page’s JS context. DOM access works, but JS globals from the page are not shared.
 7. Reloading an unpacked extension restarts the service worker. Always retest alarm scheduling and state restoration after reloads.
 8. Long-running overlays need reinjection for newly loaded tabs. That is why the service worker listens to `tabs.onUpdated`.
-
-## How to publish to the Chrome Web Store
-
-1. Create production icons, screenshots, and a store listing.
-2. Build the extension with `npm run build`.
-3. Zip the contents of `dist/`.
-4. Create a developer account in the Chrome Web Store Developer Dashboard.
-5. Upload the zip, complete the listing fields, and submit for review.
-6. Expect extra review attention because the extension modifies the new tab page and injects fullscreen overlays.
 
 ## Contributing
 
